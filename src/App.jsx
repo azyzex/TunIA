@@ -42,8 +42,8 @@ function App() {
     }
   }
 
-  const handleSendMessage = ({ text, file }) => {
-    if (!text.trim() && !file) return
+  const handleSendMessage = async ({ text, file }) => {
+    if (!text.trim() && !file) return;
 
     const newMessage = {
       id: messages.length + 1,
@@ -51,30 +51,34 @@ function App() {
       sender: 'user',
       timestamp: new Date(),
       file: file
-    }
+    };
 
-    setMessages(prev => [...prev, newMessage])
-    setIsLoading(true)
+    setMessages(prev => [...prev, newMessage]);
+    setIsLoading(true);
 
-    // Simulate AI response (will be replaced with actual Gemini API call)
-    setTimeout(() => {
-      const responses = [
-        "شكراً على سؤالك! هذا سؤال مثير للاهتمام. بش نحاول نجاوبك بأفضل طريقة ممكنة بالدارجة التونسية.",
-        "براي هذا السؤال يحتاج شوية تفكير. خليني نشرحلك الموضوع بطريقة مبسطة.",
-        "ممتاز! هذا السؤال الأكاديمي بش يساعدك تفهم الموضوع أكثر. تعال نشوف مع بعض.",
-        "هاي نقطة مهمة في الدراسة! بش نعطيك معلومات مفيدة حول هذا الموضوع.",
-      ]
-      
+    try {
+      const res = await fetch('http://localhost:3001/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text })
+      });
+      const data = await res.json();
       const aiResponse = {
         id: messages.length + 2,
-        text: responses[Math.floor(Math.random() * responses.length)],
+        text: data.reply || 'حدث خطأ في الرد من Gemini API.',
         sender: 'ai',
         timestamp: new Date()
-      }
-      
-      setMessages(prev => [...prev, aiResponse])
-      setIsLoading(false)
-    }, Math.random() * 2000 + 1000) // Random delay between 1-3 seconds
+      };
+      setMessages(prev => [...prev, aiResponse]);
+    } catch (err) {
+      setMessages(prev => [...prev, {
+        id: messages.length + 2,
+        text: 'حدث خطأ في الاتصال بواجهة Gemini API.',
+        sender: 'ai',
+        timestamp: new Date()
+      }]);
+    }
+    setIsLoading(false);
   }
 
   if (showWelcome) {
