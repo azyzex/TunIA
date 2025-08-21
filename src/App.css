@@ -1,0 +1,30 @@
+/* Custom styles for the chat interface */
+.chat-input {
+  direction: rtl;
+  text-align: right;
+}
+
+.message-rtl {
+  direction: rtl;
+  text-align: right;
+}
+
+.glass-effect {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* Smooth scrolling for chat */
+.chat-container {
+  scroll-behavior: smooth;
+}
+
+/* Animation for typing indicator */
+@keyframes typing {
+  0%, 60%, 100% {
+    transform: translateY(0);
+  }
+  30% {
+    transform: translateY(-10px);
+  }
+}
