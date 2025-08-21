@@ -53,6 +53,12 @@ function App() {
       file: file
     };
 
+    // Prepare history: last 10 messages before this one, excluding file
+    const history = [...messages].slice(-10).map(msg => ({
+      sender: msg.sender,
+      text: msg.text
+    }));
+
     setMessages(prev => [...prev, newMessage]);
     setIsLoading(true);
 
@@ -60,7 +66,7 @@ function App() {
       const res = await fetch('http://localhost:3001/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text })
+        body: JSON.stringify({ message: text, history })
       });
       const data = await res.json();
       const aiResponse = {
