@@ -87,20 +87,22 @@ function App() {
       const data = await res.json();
       if (!res.ok) {
         console.error('Server error response:', data);
-        throw new Error(data?.message || data?.error || 'Server error');
+        // Force a generic failure path
+        throw new Error('SERVICE_ERROR');
       }
       const aiResponse = {
         id: messages.length + 2,
-        text: data.reply || 'حدث خطأ في الرد من Gemini API.',
+        text: data.reply || 'صارّت مشكلة مؤقتة في الخدمة، جرّب بعد شوية.',
         sender: 'ai',
         timestamp: new Date()
       };
       setMessages(prev => [...prev, aiResponse]);
     } catch (err) {
       console.error('Fetch/chat error:', err);
+      const friendly = 'صارت مشكلة تقنية مؤقتة في الخدمة. جرّب بعد شوية ولا تأكّد إلي الخادم شغّال.';
       setMessages(prev => [...prev, {
         id: messages.length + 2,
-        text: `حدث خطأ في الاتصال بواجهة Gemini API: ${err.message}`,
+        text: friendly,
         sender: 'ai',
         timestamp: new Date()
       }]);
