@@ -20,10 +20,14 @@ const DARIJA_STYLE_GUIDE = `
 - كان ما فهمتش سؤال المستخدم، إسألو توضيح: "شنية تقصد بـ ...؟" وما تستعملش تعابير جارحة.
 - خليك مختصر وواضح، وكي تعطي خطوات دراسية ولا حلول، رتبهم بنقاط.
 - قلّل من الكلمات الفرنسية/الإنجليزية كان فما بديل دارج تونسي.
+- كان تلقى روابط في السياق، قول "لقيت روابط من البحث" أو "حسب البحث على الانترنت" - ما تقولش "عطيتني" لأن المستخدم ما عطاكش شي.
+- ما تقولش "ما نجمش نفتح الروابط". كان النص من رابط توفّر في المعطيات، استعملو مباشرة وردّ عليه بلا اعتذارات.
+- كان فمّا نص مستخرج من رابط، الأولوية إنك تعتمد عليه في الإجابة.
 `;
 
 app.post("/api/chat", async (req, res) => {
   const { message, history, pdfText, webSearch } = req.body || {};
+  const { fetchUrl } = req.body || {};
   // Quick request log
   console.log(
     "[POST] /api/chat",
@@ -31,8 +35,9 @@ app.post("/api/chat", async (req, res) => {
       {
         messageLen: message ? String(message).length : 0,
         historyCount: Array.isArray(history) ? history.length : 0,
-  hasPdfText: Boolean(pdfText),
-  webSearch: Boolean(webSearch),
+        hasPdfText: Boolean(pdfText),
+        webSearch: Boolean(webSearch),
+        fetchUrl: Boolean(fetchUrl),
         pdfLen: pdfText ? String(pdfText).length : 0,
         time: new Date().toISOString(),
       },
@@ -49,21 +54,71 @@ app.post("/api/chat", async (req, res) => {
 
   try {
     // Optional DuckDuckGo search if requested
-    let webSearchSnippet = '';
+    let webSearchSnippet = "";
     let webResults = [];
+    let fetchedPageText = '';
+    const urlMatch = typeof message === 'string' ? message.match(/https?:\/\/\S+/i) : null;
+    const shouldFetchFromUrl = Boolean((fetchUrl || urlMatch) && !webSearch);
+    // Optional Fetch URL: extract readable text from a URL in the message
+    if (shouldFetchFromUrl && typeof message === 'string') {
+      try {
+        if (urlMatch) {
+          const target = urlMatch[0];
+          // Basic allowlist to avoid local/unsafe protocols
+          if (/^https?:\/\//i.test(target) && !/^https?:\/\/(localhost|127\.0\.0.1|0\.0\.0\.0)/i.test(target)) {
+            const pageResp = await fetch(target, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+            const ct = (pageResp.headers.get('content-type') || '').toLowerCase();
+            console.log('Fetch URL target:', target, 'status:', pageResp.status, 'ctype:', ct);
+            const raw = await pageResp.text();
+            if (ct.includes('text/html')) {
+              const $ = cheerioLoad(raw);
+              // Remove scripts/styles and get text
+              $('script, style, noscript').remove();
+              const text = $('body').text().replace(/\s+/g, ' ').trim();
+              fetchedPageText = text.slice(0, 50000); // cap to ~50k chars
+            } else if (ct.startsWith('text/') || ct.includes('json') || ct.includes('xml')) {
+              // Fallback: keep as plain text
+              fetchedPageText = raw.slice(0, 50000);
+            }
+            console.log('Fetched page text length:', fetchedPageText.length);
+          }
+        }
+      } catch (e) {
+        console.warn('Fetch URL failed:', e.message);
+      }
+    }
+
+    // If user explicitly asked to extract/send the whole page text and we have it, return it directly
+    const wantsRawPage = typeof message === 'string' && /(\bextract\b|استخرج|رجع النص|النص كامل|المحتوى كامل)/i.test(message);
+    if (wantsRawPage && fetchedPageText) {
+      const truncated = fetchedPageText.length >= 50000;
+      return res.json({ reply: fetchedPageText, truncated });
+    }
     if (webSearch && message) {
       try {
         const q = encodeURIComponent(String(message).slice(0, 200));
         const ddgUrl = `https://api.duckduckgo.com/?q=${q}&format=json&no_redirect=1&no_html=1&skip_disambig=1`;
-        const ddgResp = await fetch(ddgUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        const ddgResp = await fetch(ddgUrl, {
+          headers: { "User-Agent": "Mozilla/5.0" },
+        });
         const ddgJson = await ddgResp.json();
-        const abstract = ddgJson?.AbstractText || ddgJson?.Abstract || '';
-        const firstURL = ddgJson?.AbstractURL || (Array.isArray(ddgJson?.Results) && ddgJson.Results[0]?.FirstURL) || '';
-        if (firstURL) webResults.push({ title: ddgJson?.Heading || 'Result', url: firstURL });
+        const abstract = ddgJson?.AbstractText || ddgJson?.Abstract || "";
+        const firstURL =
+          ddgJson?.AbstractURL ||
+          (Array.isArray(ddgJson?.Results) && ddgJson.Results[0]?.FirstURL) ||
+          "";
+        if (firstURL)
+          webResults.push({
+            title: ddgJson?.Heading || "Result",
+            url: firstURL,
+          });
         if (Array.isArray(ddgJson?.RelatedTopics)) {
           for (const t of ddgJson.RelatedTopics) {
-            const title = t?.Text || (Array.isArray(t?.Topics) ? t.Topics[0]?.Text : '');
-            const url = t?.FirstURL || (Array.isArray(t?.Topics) ? t.Topics[0]?.FirstURL : '');
+            const title =
+              t?.Text || (Array.isArray(t?.Topics) ? t.Topics[0]?.Text : "");
+            const url =
+              t?.FirstURL ||
+              (Array.isArray(t?.Topics) ? t.Topics[0]?.FirstURL : "");
             if (title && url) webResults.push({ title, url });
             if (webResults.length >= 2) break; // Limit to 2 results total
           }
@@ -71,18 +126,22 @@ app.post("/api/chat", async (req, res) => {
         // HTML fallback if not enough URLs
         if (webResults.length < 2) {
           const ddgHtmlUrl = `https://html.duckduckgo.com/html/?q=${q}`;
-          const htmlResp = await fetch(ddgHtmlUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+          const htmlResp = await fetch(ddgHtmlUrl, {
+            headers: { "User-Agent": "Mozilla/5.0" },
+          });
           const html = await htmlResp.text();
           const $ = cheerioLoad(html);
           $("a.result__a").each((_, el) => {
             if (webResults.length >= 2) return false; // Limit to 2 results
             const title = $(el).text().trim();
-            let url = $(el).attr('href');
+            let url = $(el).attr("href");
             // Extract actual URL from DuckDuckGo redirect
-            if (url && url.includes('//duckduckgo.com/l/?uddg=')) {
+            if (url && url.includes("//duckduckgo.com/l/?uddg=")) {
               try {
-                const urlParams = new URL(url, 'https://duckduckgo.com');
-                const actualUrl = decodeURIComponent(urlParams.searchParams.get('uddg') || '');
+                const urlParams = new URL(url, "https://duckduckgo.com");
+                const actualUrl = decodeURIComponent(
+                  urlParams.searchParams.get("uddg") || ""
+                );
                 if (actualUrl) url = actualUrl;
               } catch (e) {
                 // Keep original if parsing fails
@@ -91,14 +150,18 @@ app.post("/api/chat", async (req, res) => {
             if (title && url) webResults.push({ title, url });
           });
         }
-        const list = webResults.map((r, i) => `${i + 1}. ${r.title} - ${r.url}`).join('\n');
+        const list = webResults
+          .map((r, i) => `${i + 1}. ${r.title} - ${r.url}`)
+          .join("\n");
         webSearchSnippet = [
           abstract && `نتيجة مختصرة: ${abstract}`,
-          webResults.length ? `روابط مفيدة:\n${list}` : ''
-        ].filter(Boolean).join('\n\n');
-        console.log('Web search results found:', webResults.length);
+          webResults.length ? `روابط مفيدة:\n${list}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+        console.log("Web search results found:", webResults.length);
       } catch (e) {
-        console.warn('Web search failed:', e.message);
+        console.warn("Web search failed:", e.message);
       }
     }
 
@@ -116,6 +179,8 @@ app.post("/api/chat", async (req, res) => {
     // Prefer web search when enabled; otherwise include PDF text if present
     if (webSearchSnippet) {
       userPrompt += `\n\n${webSearchSnippet}`;
+    } else if (fetchedPageText) {
+      userPrompt += `\n\nنص من صفحة الويب المطلوبة:\n${fetchedPageText}`;
     } else if (pdfText) {
       userPrompt += `\n\nهذا نص ملف PDF المرسل: ${pdfText}`;
     }

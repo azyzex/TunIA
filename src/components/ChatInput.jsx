@@ -1,12 +1,13 @@
 import React, { useState, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { Send, Upload, FileText, X, Plus, Search } from 'lucide-react'
+import { Send, Upload, FileText, X, Plus, Search, Link as LinkIcon } from 'lucide-react'
 
 const ChatInput = ({ onSendMessage, disabled = false }) => {
   const [inputText, setInputText] = useState('')
   const [selectedFile, setSelectedFile] = useState(null)
   const [toolMenuOpen, setToolMenuOpen] = useState(false)
   const [webSearchEnabled, setWebSearchEnabled] = useState(false)
+  const [fetchUrlEnabled, setFetchUrlEnabled] = useState(false)
   const fileInputRef = useRef(null)
 
   const handleSend = () => {
@@ -15,7 +16,8 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
     onSendMessage({
       text: inputText,
       file: selectedFile,
-      webSearch: webSearchEnabled
+      webSearch: webSearchEnabled,
+      fetchUrl: fetchUrlEnabled
     })
     
     setInputText('')
@@ -30,7 +32,8 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
     const file = event.target.files[0]
     if (file && file.type === 'application/pdf') {
       // Mutual exclusivity: selecting a file disables web search
-      setWebSearchEnabled(false)
+  setWebSearchEnabled(false)
+  setFetchUrlEnabled(false)
       setSelectedFile(file)
     }
   }
@@ -48,15 +51,28 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
       setSelectedFile(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
-    setWebSearchEnabled(prev => !prev)
+  if (!webSearchEnabled) setFetchUrlEnabled(false)
+  setWebSearchEnabled(prev => !prev)
     setToolMenuOpen(false)
   }
 
   const openFilePicker = () => {
     // Mutual exclusivity: choosing upload clears web search
     setWebSearchEnabled(false)
+    setFetchUrlEnabled(false)
     setToolMenuOpen(false)
     fileInputRef.current?.click()
+  }
+
+  const toggleFetchUrl = () => {
+    // Mutual exclusivity: enabling fetchUrl clears file and web search
+    if (!fetchUrlEnabled) {
+      setSelectedFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      setWebSearchEnabled(false)
+    }
+    setFetchUrlEnabled(prev => !prev)
+    setToolMenuOpen(false)
   }
 
   return (
@@ -147,7 +163,11 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
                         </button>
                         <button className="dropdown-item d-flex align-items-center" type="button" onClick={toggleWebSearch} disabled={disabled}>
                           <Search size={16} className="me-2" />
-                          بحث على الويب (DuckDuckGo) {webSearchEnabled ? '✓' : ''}
+                          بحث على الويب {webSearchEnabled ? '✓' : ''}
+                        </button>
+                        <button className="dropdown-item d-flex align-items-center" type="button" onClick={toggleFetchUrl} disabled={disabled}>
+                          <LinkIcon size={16} className="me-2" />
+                          جلب محتوى رابط {fetchUrlEnabled ? '✓' : ''}
                         </button>
                       </div>
                     )}
@@ -178,10 +198,13 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
               accept=".pdf"
               onChange={handleFileSelect}
               className="d-none"
-              disabled={webSearchEnabled}
+              disabled={webSearchEnabled || fetchUrlEnabled}
             />
             {webSearchEnabled && (
               <div className="mt-2 small text-primary">باش نخدم بحث على الويب (DuckDuckGo) للسؤال هذا.</div>
+            )}
+            {fetchUrlEnabled && (
+              <div className="mt-2 small text-primary">اكتب رابط (http/https) في سؤالك وباش نجيبلو المحتوى متاعو.</div>
             )}
           </div>
         </div>

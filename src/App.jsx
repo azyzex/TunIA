@@ -46,7 +46,7 @@ function App() {
     }
   }
 
-  const handleSendMessage = async ({ text, file, webSearch }) => {
+  const handleSendMessage = async ({ text, file, webSearch, fetchUrl }) => {
     if (!text.trim() && !file) return;
 
     const newMessage = {
@@ -81,7 +81,7 @@ function App() {
       const res = await fetch('http://localhost:3001/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history, pdfText, webSearch })
+        body: JSON.stringify({ message: text, history, pdfText, webSearch, fetchUrl })
       });
       const data = await res.json();
       if (!res.ok) {
