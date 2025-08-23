@@ -56,40 +56,61 @@ app.post("/api/chat", async (req, res) => {
     // Optional DuckDuckGo search if requested
     let webSearchSnippet = "";
     let webResults = [];
-    let fetchedPageText = '';
-    const urlMatch = typeof message === 'string' ? message.match(/https?:\/\/\S+/i) : null;
+    let fetchedPageText = "";
+    const urlMatch =
+      typeof message === "string" ? message.match(/https?:\/\/\S+/i) : null;
     const shouldFetchFromUrl = Boolean((fetchUrl || urlMatch) && !webSearch);
     // Optional Fetch URL: extract readable text from a URL in the message
-    if (shouldFetchFromUrl && typeof message === 'string') {
+    if (shouldFetchFromUrl && typeof message === "string") {
       try {
         if (urlMatch) {
           const target = urlMatch[0];
           // Basic allowlist to avoid local/unsafe protocols
-          if (/^https?:\/\//i.test(target) && !/^https?:\/\/(localhost|127\.0\.0.1|0\.0\.0\.0)/i.test(target)) {
-            const pageResp = await fetch(target, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-            const ct = (pageResp.headers.get('content-type') || '').toLowerCase();
-            console.log('Fetch URL target:', target, 'status:', pageResp.status, 'ctype:', ct);
+          if (
+            /^https?:\/\//i.test(target) &&
+            !/^https?:\/\/(localhost|127\.0\.0.1|0\.0\.0\.0)/i.test(target)
+          ) {
+            const pageResp = await fetch(target, {
+              headers: { "User-Agent": "Mozilla/5.0" },
+            });
+            const ct = (
+              pageResp.headers.get("content-type") || ""
+            ).toLowerCase();
+            console.log(
+              "Fetch URL target:",
+              target,
+              "status:",
+              pageResp.status,
+              "ctype:",
+              ct
+            );
             const raw = await pageResp.text();
-            if (ct.includes('text/html')) {
+            if (ct.includes("text/html")) {
               const $ = cheerioLoad(raw);
               // Remove scripts/styles and get text
-              $('script, style, noscript').remove();
-              const text = $('body').text().replace(/\s+/g, ' ').trim();
+              $("script, style, noscript").remove();
+              const text = $("body").text().replace(/\s+/g, " ").trim();
               fetchedPageText = text.slice(0, 50000); // cap to ~50k chars
-            } else if (ct.startsWith('text/') || ct.includes('json') || ct.includes('xml')) {
+            } else if (
+              ct.startsWith("text/") ||
+              ct.includes("json") ||
+              ct.includes("xml")
+            ) {
               // Fallback: keep as plain text
               fetchedPageText = raw.slice(0, 50000);
             }
-            console.log('Fetched page text length:', fetchedPageText.length);
+            console.log("Fetched page text length:", fetchedPageText.length);
           }
         }
       } catch (e) {
-        console.warn('Fetch URL failed:', e.message);
+        console.warn("Fetch URL failed:", e.message);
       }
     }
 
     // If user explicitly asked to extract/send the whole page text and we have it, return it directly
-    const wantsRawPage = typeof message === 'string' && /(\bextract\b|استخرج|رجع النص|النص كامل|المحتوى كامل)/i.test(message);
+    const wantsRawPage =
+      typeof message === "string" &&
+      /(\bextract\b|استخرج|رجع النص|النص كامل|المحتوى كامل)/i.test(message);
     if (wantsRawPage && fetchedPageText) {
       const truncated = fetchedPageText.length >= 50000;
       return res.json({ reply: fetchedPageText, truncated });
