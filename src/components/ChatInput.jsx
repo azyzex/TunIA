@@ -1,10 +1,12 @@
 import React, { useState, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { Send, Upload, FileText, X } from 'lucide-react'
+import { Send, Upload, FileText, X, Plus, Search } from 'lucide-react'
 
 const ChatInput = ({ onSendMessage, disabled = false }) => {
   const [inputText, setInputText] = useState('')
   const [selectedFile, setSelectedFile] = useState(null)
+  const [toolMenuOpen, setToolMenuOpen] = useState(false)
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false)
   const fileInputRef = useRef(null)
 
   const handleSend = () => {
@@ -12,11 +14,13 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
     
     onSendMessage({
       text: inputText,
-      file: selectedFile
+      file: selectedFile,
+      webSearch: webSearchEnabled
     })
     
     setInputText('')
     setSelectedFile(null)
+    // Keep webSearchEnabled persistent - don't reset it
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -25,6 +29,8 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
   const handleFileSelect = (event) => {
     const file = event.target.files[0]
     if (file && file.type === 'application/pdf') {
+      // Mutual exclusivity: selecting a file disables web search
+      setWebSearchEnabled(false)
       setSelectedFile(file)
     }
   }
@@ -34,6 +40,23 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
+  }
+
+  const toggleWebSearch = () => {
+    // Mutual exclusivity: enabling web search clears file selection
+    if (!webSearchEnabled) {
+      setSelectedFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+    setWebSearchEnabled(prev => !prev)
+    setToolMenuOpen(false)
+  }
+
+  const openFilePicker = () => {
+    // Mutual exclusivity: choosing upload clears web search
+    setWebSearchEnabled(false)
+    setToolMenuOpen(false)
+    fileInputRef.current?.click()
   }
 
   return (
@@ -98,21 +121,38 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
                   rows={1}
                   disabled={disabled}
                 />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="btn btn-link position-absolute text-muted p-0"
-                  style={{ 
-                    left: '12px', 
-                    top: '50%', 
-                    transform: 'translateY(-50%)',
-                    width: '32px',
-                    height: '32px'
-                  }}
-                  disabled={disabled}
+                <div
+                  className="position-absolute"
+                  style={{ left: '8px', top: '50%', transform: 'translateY(-50%)' }}
                 >
-                  <Upload size={20} />
-                </button>
+                  <div className="dropdown dropup">
+                    <button
+                      type="button"
+                      className="btn btn-link text-muted p-0 dropdown-toggle"
+                      onClick={() => setToolMenuOpen(v => !v)}
+                      aria-expanded={toolMenuOpen}
+                      disabled={disabled}
+                      style={{ width: '32px', height: '32px' }}
+                    >
+                      <Plus size={20} />
+                    </button>
+                    {toolMenuOpen && (
+                      <div
+                        className="dropdown-menu show"
+                        style={{ minWidth: '200px', top: 'auto', bottom: '110%' }}
+                      >
+                        <button className="dropdown-item d-flex align-items-center" type="button" onClick={openFilePicker} disabled={disabled}>
+                          <Upload size={16} className="me-2" />
+                          رفع ملف PDF
+                        </button>
+                        <button className="dropdown-item d-flex align-items-center" type="button" onClick={toggleWebSearch} disabled={disabled}>
+                          <Search size={16} className="me-2" />
+                          بحث على الويب (DuckDuckGo) {webSearchEnabled ? '✓' : ''}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
               
               <motion.button
@@ -138,7 +178,11 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
               accept=".pdf"
               onChange={handleFileSelect}
               className="d-none"
+              disabled={webSearchEnabled}
             />
+            {webSearchEnabled && (
+              <div className="mt-2 small text-primary">باش نخدم بحث على الويب (DuckDuckGo) للسؤال هذا.</div>
+            )}
           </div>
         </div>
       </div>
