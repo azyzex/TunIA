@@ -8,7 +8,7 @@ dotenv.config();
 const app = express();
 app.use(cors());
 // Allow bigger payloads in case PDF text is large (still capped on client)
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "10mb" }));
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
@@ -26,7 +26,7 @@ const DARIJA_STYLE_GUIDE = `
 `;
 
 app.post("/api/chat", async (req, res) => {
-  const { message, history, pdfText, webSearch } = req.body || {};
+  const { message, history, pdfText, webSearch, image } = req.body || {};
   const { fetchUrl } = req.body || {};
   // Quick request log
   console.log(
@@ -38,7 +38,8 @@ app.post("/api/chat", async (req, res) => {
         hasPdfText: Boolean(pdfText),
         webSearch: Boolean(webSearch),
         fetchUrl: Boolean(fetchUrl),
-        pdfLen: pdfText ? String(pdfText).length : 0,
+  pdfLen: pdfText ? String(pdfText).length : 0,
+  hasImage: Boolean(image && image.data && image.mimeType),
         time: new Date().toISOString(),
       },
       null,
@@ -232,8 +233,8 @@ app.post("/api/chat", async (req, res) => {
 
     // Only keep the last 30 turns
     const last30 = Array.isArray(history) ? history.slice(-30) : [];
-    // Convert history to Gemini API format with valid roles
-    const contents = last30.map((turn) => ({
+  // Convert history to Gemini API format with valid roles
+  const contents = last30.map((turn) => ({
       role: turn.sender === "user" ? "user" : "model",
       parts: [{ text: turn.text }],
     }));
@@ -257,10 +258,12 @@ app.post("/api/chat", async (req, res) => {
     if (pdfText) {
       userPrompt += `\n\nهذا نص ملف PDF المرسل: ${pdfText}`;
     }
-    contents.push({
-      role: "user",
-      parts: [{ text: userPrompt }],
-    });
+    // Build final user turn parts (text + optional image)
+    const parts = [{ text: userPrompt }];
+    if (image && image.data && image.mimeType) {
+      parts.push({ inlineData: { mimeType: String(image.mimeType), data: String(image.data) } });
+    }
+    contents.push({ role: "user", parts });
     // No need to add an extra instruction; covered by style guide
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
@@ -280,37 +283,23 @@ app.post("/api/chat", async (req, res) => {
     }
 
     if (!response.ok) {
-      if (fetchedPageText) {
-        userPrompt += `\n\nنص من صفحة الويب المطلوبة:\n${fetchedPageText}`;
-      }
-      if (pdfText) {
-        userPrompt += `\n\nهذا نص ملف PDF المرسل: ${pdfText}`;
-      }
-      console.error(
-        "Gemini API error status:",
-        response.status,
-        response.statusText
-      );
-      console.error("Gemini API error body:", textBody);
-      const apiErrorMessage =
-        (data && data.error && data.error.message) ||
-        (typeof data === "string" ? data : JSON.stringify(data).slice(0, 1000));
-      return res.status(502).json({
-        error: "Gemini API request failed",
-        status: response.status,
-        message: apiErrorMessage,
-      });
+      console.error("Model API error status:", response.status, response.statusText);
+      console.error("Model API error body:", textBody);
+      // Friendly Darija message without exposing provider/model
+      const friendly = "صارت مشكلة تقنية مؤقتة في الخدمة. جرّب بعد شوية ولا قصّر شوية من الصورة/المحتوى. سامحني.";
+      return res.json({ reply: friendly, softError: true });
     }
 
     console.log("Gemini API response:", JSON.stringify(data, null, 2));
-    let reply =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "ما فماش رد من Gemini.";
+  let reply = data?.candidates?.[0]?.content?.parts?.[0]?.text || "ما نجمتش نكوّن ردّ مناسب تاو.";
     // Sanitize known misused phrases (light-touch). Can be expanded.
     try {
       reply = reply
         // remove standalone/misplaced "يا حسرة" occurrences
-        .replace(/(^|\s)يا\s*حسرة[،,.!؟]*\s*/g, (m, p1) => (p1 ? " " : ""))
+    .replace(/(^|\s)يا\s*حسرة[،,.!؟]*\s*/g, (m, p1) => (p1 ? " " : ""))
+    // hide model/provider mentions
+    .replace(/\bgemini\b/gi, "")
+    .replace(/\bgoogle\b/gi, "")
         .trim();
     } catch (_) {}
     // Don't append sources at the end since they're already in the prompt/reply

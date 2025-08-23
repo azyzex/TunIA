@@ -46,15 +46,16 @@ function App() {
     }
   }
 
-  const handleSendMessage = async ({ text, file, webSearch, fetchUrl }) => {
-    if (!text.trim() && !file) return;
+  const handleSendMessage = async ({ text, file, webSearch, fetchUrl, image }) => {
+    if (!text.trim() && !file && !image) return;
 
     const newMessage = {
       id: messages.length + 1,
       text: text,
       sender: 'user',
       timestamp: new Date(),
-      file: file
+  file: file,
+  imagePreview: image && image.previewUrl ? image.previewUrl : null
     };
 
     // Prepare history: last 30 messages before this one, excluding file
@@ -81,7 +82,7 @@ function App() {
       const res = await fetch('http://localhost:3001/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history, pdfText, webSearch, fetchUrl })
+        body: JSON.stringify({ message: text, history, pdfText, webSearch, fetchUrl, image })
       });
       const data = await res.json();
       if (!res.ok) {

@@ -71,6 +71,11 @@ const ChatMessage = ({ message, isLoading = false }) => {
               <small>{message.file.name}</small>
             </div>
           )}
+          {message.imagePreview && (
+            <div className="mb-2">
+              <img src={message.imagePreview} alt="uploaded" style={{ width: 88, height: 88, objectFit: 'cover', borderRadius: 8 }} />
+            </div>
+          )}
           <p className="mb-1 message-rtl" style={{ fontSize: '0.9rem', lineHeight: '1.4' }}>
             {message.text}
           </p>

@@ -1,37 +1,46 @@
 import React, { useState, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { Send, Upload, FileText, X, Plus, Search } from 'lucide-react'
+import { Send, Upload, FileText, X, Plus, Search, Image as ImageIcon } from 'lucide-react'
 
 const ChatInput = ({ onSendMessage, disabled = false }) => {
   const [inputText, setInputText] = useState('')
   const [selectedFile, setSelectedFile] = useState(null)
   const [toolMenuOpen, setToolMenuOpen] = useState(false)
   const [combinedToolEnabled, setCombinedToolEnabled] = useState(false)
+  const [selectedImage, setSelectedImage] = useState(null) // { file, previewUrl, mimeType, base64 }
   const fileInputRef = useRef(null)
+  const imageInputRef = useRef(null)
 
   const handleSend = () => {
-    if (!inputText.trim() && !selectedFile) return
+    if (!inputText.trim() && !selectedFile && !selectedImage) return
     
     onSendMessage({
       text: inputText,
       file: selectedFile,
+  image: selectedImage ? { data: selectedImage.base64, mimeType: selectedImage.mimeType, previewUrl: selectedImage.previewUrl } : null,
       webSearch: combinedToolEnabled,
       fetchUrl: combinedToolEnabled
     })
     
     setInputText('')
     setSelectedFile(null)
+    setSelectedImage(null)
   // Keep combinedToolEnabled persistent - don't reset it
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
+    }
+    if (imageInputRef.current) {
+      imageInputRef.current.value = ''
     }
   }
 
   const handleFileSelect = (event) => {
     const file = event.target.files[0]
     if (file && file.type === 'application/pdf') {
-      // Mutual exclusivity: selecting a file disables combined tool
+      // Mutual exclusivity: selecting a file disables combined tool and image
       setCombinedToolEnabled(false)
+      setSelectedImage(null)
+      if (imageInputRef.current) imageInputRef.current.value = ''
       setSelectedFile(file)
     }
   }
@@ -58,6 +67,37 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
   setCombinedToolEnabled(false)
     setToolMenuOpen(false)
     fileInputRef.current?.click()
+  }
+
+  const openImagePicker = () => {
+    // Mutual exclusivity: choosing upload clears combined tool
+    setCombinedToolEnabled(false)
+    setToolMenuOpen(false)
+    imageInputRef.current?.click()
+  }
+
+  const handleImageSelect = async (event) => {
+    const file = event.target.files[0]
+    if (!file) return
+    const allowed = ['image/jpeg','image/png','image/webp','image/jpg']
+    if (!allowed.includes(file.type)) return
+    // Create preview
+    const previewUrl = URL.createObjectURL(file)
+    // Read base64
+    const base64 = await new Promise((resolve, reject) => {
+      const r = new FileReader()
+      r.onload = () => {
+        const result = r.result
+        const comma = result.indexOf(',')
+        resolve(comma >= 0 ? result.slice(comma+1) : result)
+      }
+      r.onerror = reject
+      r.readAsDataURL(file)
+    })
+  // Mutual exclusivity: clear selected PDF when selecting an image
+  setSelectedFile(null)
+  if (fileInputRef.current) fileInputRef.current.value = ''
+  setSelectedImage({ file, previewUrl, mimeType: file.type, base64 })
   }
 
 
@@ -102,6 +142,33 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
             {/* Input Bar */}
             <div className="d-flex align-items-end gap-3">
               <div className="flex-grow-1 position-relative">
+                {/* Selected Image Display */}
+                {selectedImage && (
+                  <motion.div
+                    initial={{ scale: 0.9, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    className="mb-3 p-2 bg-light border border-primary rounded-3 d-flex align-items-center justify-content-between"
+                  >
+                    <div className="d-flex align-items-center">
+                      <img src={selectedImage.previewUrl} alt="selected" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 6 }} className="me-2" />
+                      <div>
+                        <div className="fw-medium text-dark" style={{ fontSize: '0.85rem' }}>
+                          {selectedImage.file.name}
+                        </div>
+                        <small className="text-primary">
+                          {(selectedImage.file.size / 1024 / 1024).toFixed(2)} MB
+                        </small>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setSelectedImage(null); if (imageInputRef.current) imageInputRef.current.value = '' }}
+                      className="btn btn-sm btn-outline-primary"
+                    >
+                      <X size={16} />
+                    </button>
+                  </motion.div>
+                )}
                 <textarea
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
@@ -147,6 +214,10 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
                           <Upload size={16} className="me-2" />
                           رفع ملف PDF
                         </button>
+                        <button className="dropdown-item d-flex align-items-center" type="button" onClick={openImagePicker} disabled={disabled}>
+                          <ImageIcon size={16} className="me-2" />
+                          رفع صورة
+                        </button>
                         <button className="dropdown-item d-flex align-items-center" type="button" onClick={toggleCombinedTool} disabled={disabled}>
                           <Search size={16} className="me-2" />
                           بحث الويب + جلب الرابط {combinedToolEnabled ? '✓' : ''}
@@ -161,7 +232,7 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
                 whileHover={{ scale: disabled ? 1 : 1.05 }}
                 whileTap={{ scale: disabled ? 1 : 0.95 }}
                 onClick={handleSend}
-                disabled={disabled || (!inputText.trim() && !selectedFile)}
+                disabled={disabled || (!inputText.trim() && !selectedFile && !selectedImage)}
                 className="btn tunisian-primary text-white shadow-sm d-flex align-items-center justify-content-center"
                 style={{ 
                   width: '48px', 
@@ -179,6 +250,14 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
               type="file"
               accept=".pdf"
               onChange={handleFileSelect}
+              className="d-none"
+              disabled={combinedToolEnabled}
+            />
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/jpg"
+              onChange={handleImageSelect}
               className="d-none"
               disabled={combinedToolEnabled}
             />
