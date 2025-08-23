@@ -24,6 +24,41 @@ function App() {
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+  const handleExportPdf = async (aiMessage) => {
+    try {
+      // Find the immediate previous user message
+      const idx = messages.findIndex(m => m.id === aiMessage.id)
+      let prevUser = ''
+      for (let i = idx - 1; i >= 0; i--) {
+        if (messages[i]?.sender === 'user') { prevUser = messages[i].text || ''; break }
+      }
+      const res = await fetch('http://localhost:3001/api/export-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userPrompt: prevUser, aiText: aiMessage.text })
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data?.error || 'PDF_ERROR')
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'export.pdf'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setMessages(prev => [...prev, {
+        id: prev.length + 1,
+        text: 'تعطلت خدمة إنشاء ال-PDF مؤقتاً. جرّب بعد شوية.',
+        sender: 'ai',
+        timestamp: new Date()
+      }])
+    }
+  }
 
   const startChat = (initialMessage = null) => {
     setShowWelcome(false)
@@ -155,7 +190,7 @@ async function readPDFFile(file) {
           <div className="col-lg-8 col-xl-6">
             <AnimatePresence>
               {messages.map((message) => (
-                <ChatMessage key={message.id} message={message} />
+                <ChatMessage key={message.id} message={message} onExport={handleExportPdf} />
               ))}
             </AnimatePresence>
 

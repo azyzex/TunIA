@@ -3,6 +3,8 @@ import cors from "cors";
 import fetch from "node-fetch";
 import { load as cheerioLoad } from "cheerio";
 import dotenv from "dotenv";
+import MarkdownIt from "markdown-it";
+import puppeteer from "puppeteer";
 dotenv.config();
 
 const app = express();
@@ -307,6 +309,82 @@ app.post("/api/chat", async (req, res) => {
   } catch (err) {
     console.error("/api/chat handler error:", err);
     res.status(500).json({ error: "API error", details: err.message });
+  }
+});
+
+// Generate Academic PDF route
+app.post("/api/export-pdf", async (req, res) => {
+  try {
+    const { userPrompt, aiText } = req.body || {};
+    if (!aiText) {
+      return res.status(400).json({ error: "نقص شوية معلومات لإنشاء ال-PDF." });
+    }
+    const md = new MarkdownIt({ html: true, linkify: true, breaks: false });
+    let contentHtml = "";
+    try {
+      contentHtml = md.render(aiText);
+    } catch (_) {
+      contentHtml = `<pre>${aiText.replace(/[&<>]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[s]))}</pre>`;
+    }
+
+    const safePrompt = userPrompt ? `<blockquote class="prompt">${String(userPrompt).replace(/[&<>]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[s]))}</blockquote>` : "";
+
+    const html = `<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    @page { margin: 28mm 20mm 28mm 20mm; }
+    body { font-family: 'Noto Naskh Arabic', serif; color: #111; line-height: 1.7; font-size: 12.5pt; }
+    header { text-align: center; margin-bottom: 8mm; }
+    h1.title { font-size: 28pt; font-weight: 800; text-align: center; margin: 0 0 6mm; }
+    .abstract { font-style: italic; color: #444; font-size: 11.5pt; margin: 0 0 10mm; text-align: justify; }
+    h2, h3 { font-weight: 700; margin: 10mm 0 4mm; }
+    h2 { font-size: 18pt; }
+    h3 { font-size: 15pt; }
+    p { text-align: justify; margin: 0 0 4mm; }
+    ul, ol { margin: 0 0 4mm 0; padding-inline-start: 18pt; }
+    li { margin: 2mm 0; }
+    blockquote.prompt { border-right: 3px solid #ccc; padding: 4mm 6mm; color: #555; margin: 0 0 10mm; background: #fafafa; }
+    footer { position: fixed; bottom: -10mm; left: 0; right: 0; text-align: center; font-size: 10pt; color: #777; }
+    .page-number:before { content: counter(page); }
+  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;700;800&display=swap" rel="stylesheet">
+  <title>Academic Export</title>
+  <script>
+    function tryPromoteTitle(){
+      const firstH1 = document.querySelector('h1,h2');
+      if (firstH1) { firstH1.classList.add('title'); }
+      const ps = document.querySelectorAll('p');
+      for (const p of ps) { if (p.textContent.trim().startsWith('Abstract') || p.textContent.trim().startsWith('ملخص')) { p.classList.add('abstract'); break; } }
+    }
+    document.addEventListener('DOMContentLoaded', tryPromoteTitle);
+  </script>
+  <style>
+    @page { @bottom-center { content: counter(page); } }
+  </style>
+  </head>
+<body>
+  <header></header>
+  ${safePrompt}
+  ${contentHtml}
+  <footer>صفحة <span class="page-number"></span></footer>
+</body>
+</html>`;
+
+    const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'networkidle0' });
+    const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '20mm', bottom: '20mm', left: '15mm', right: '15mm' } });
+    await browser.close();
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="export.pdf"');
+    return res.send(pdfBuffer);
+  } catch (e) {
+    console.error('PDF generation failed:', e);
+    return res.status(500).json({ error: 'تعطلت خدمة إنشاء ال-PDF مؤقتاً. جرّب بعد شوية.' });
   }
 });
 

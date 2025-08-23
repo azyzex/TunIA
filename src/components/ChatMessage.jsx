@@ -2,7 +2,7 @@ import React from 'react'
 import { motion } from 'framer-motion'
 import { Bot, User, FileText } from 'lucide-react'
 
-const ChatMessage = ({ message, isLoading = false }) => {
+const ChatMessage = ({ message, isLoading = false, onExport }) => {
   const isUser = message?.sender === 'user'
   
   const formatTime = (date) => {
@@ -63,7 +63,7 @@ const ChatMessage = ({ message, isLoading = false }) => {
         </div>
 
         {/* Message Bubble */}
-        <div className={`chat-bubble ${isUser ? 'chat-bubble-user' : 'chat-bubble-ai'}`}>
+  <div className={`chat-bubble ${isUser ? 'chat-bubble-user' : 'chat-bubble-ai'}`}>
           {message.file && (
             <div className="d-flex align-items-center mb-2 p-2 rounded"
                  style={{ backgroundColor: 'rgba(0, 0, 0, 0.1)' }}>
@@ -79,10 +79,20 @@ const ChatMessage = ({ message, isLoading = false }) => {
           <p className="mb-1 message-rtl" style={{ fontSize: '0.9rem', lineHeight: '1.4' }}>
             {message.text}
           </p>
-          <div className={`text-muted ${isUser ? 'text-end' : 'text-start'}`}>
+          <div className={`text-muted ${isUser ? 'text-end' : 'text-start'} d-flex align-items-center gap-2`}>
             <small style={{ fontSize: '0.75rem', opacity: 0.7 }}>
               {formatTime(message.timestamp)}
             </small>
+            {!isUser && (
+              <button
+                type="button"
+                className="btn btn-link btn-sm p-0"
+                onClick={() => onExport && onExport(message)}
+                title="تصدير كـ PDF"
+              >
+                تصدير كـ PDF
+              </button>
+            )}
           </div>
         </div>
       </div>
