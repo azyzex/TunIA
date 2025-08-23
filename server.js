@@ -54,21 +54,38 @@ app.post("/api/chat", async (req, res) => {
 
   try {
     // Optional DuckDuckGo search if requested
-    let webSearchSnippet = "";
-    let webResults = [];
-    let fetchedPageText = "";
+  let webSearchSnippet = "";
+  let webResults = [];
+  let fetchedPageText = "";
+  let fetchedSearchPages = [];
     const urlMatch =
       typeof message === "string" ? message.match(/https?:\/\/\S+/i) : null;
-    const shouldFetchFromUrl = Boolean((fetchUrl || urlMatch) && !webSearch);
+    // Try to recover the last URL from conversation history if current message has none
+    let lastUrlFromHistory = null;
+    if (!urlMatch && Array.isArray(history) && history.length) {
+      for (let i = history.length - 1; i >= 0; i--) {
+        const m =
+          typeof history[i]?.text === "string"
+            ? history[i].text.match(/https?:\/\/\S+/i)
+            : null;
+        if (m && m[0]) {
+          lastUrlFromHistory = m[0];
+          break;
+        }
+      }
+    }
+  const candidateUrl = urlMatch?.[0] || lastUrlFromHistory || null;
+  // Fetch only when the combined tool is enabled AND a URL is available
+  const shouldFetchFromUrl = Boolean(fetchUrl && candidateUrl);
     // Optional Fetch URL: extract readable text from a URL in the message
     if (shouldFetchFromUrl && typeof message === "string") {
       try {
-        if (urlMatch) {
-          const target = urlMatch[0];
+        if (candidateUrl) {
+          const target = candidateUrl;
           // Basic allowlist to avoid local/unsafe protocols
           if (
             /^https?:\/\//i.test(target) &&
-            !/^https?:\/\/(localhost|127\.0\.0.1|0\.0\.0\.0)/i.test(target)
+            !/^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)/i.test(target)
           ) {
             const pageResp = await fetch(target, {
               headers: { "User-Agent": "Mozilla/5.0" },
@@ -110,12 +127,15 @@ app.post("/api/chat", async (req, res) => {
     // If user explicitly asked to extract/send the whole page text and we have it, return it directly
     const wantsRawPage =
       typeof message === "string" &&
-      /(\bextract\b|استخرج|رجع النص|النص كامل|المحتوى كامل)/i.test(message);
+      (/(\bextract\b|استخرج|رجع\s*النص|النص\s*كامل|المحتوى\s*كامل)/i.test(
+        message
+      ) ||
+        /(اعطيني|هات|جيب).{0,30}(النص|text)/i.test(message));
     if (wantsRawPage && fetchedPageText) {
       const truncated = fetchedPageText.length >= 50000;
       return res.json({ reply: fetchedPageText, truncated });
     }
-    if (webSearch && message) {
+  if (webSearch && message) {
       try {
         const q = encodeURIComponent(String(message).slice(0, 200));
         const ddgUrl = `https://api.duckduckgo.com/?q=${q}&format=json&no_redirect=1&no_html=1&skip_disambig=1`;
@@ -181,6 +201,30 @@ app.post("/api/chat", async (req, res) => {
           .filter(Boolean)
           .join("\n\n");
         console.log("Web search results found:", webResults.length);
+        // If combined tool is enabled, fetch content from top search results (limit 2)
+        if (fetchUrl && webResults.length) {
+          const toFetch = webResults.slice(0, 2);
+          for (const r of toFetch) {
+            try {
+              const pageResp = await fetch(r.url, { headers: { "User-Agent": "Mozilla/5.0" } });
+              const ct = (pageResp.headers.get("content-type") || "").toLowerCase();
+              if (ct.includes("text/html") || ct.startsWith("text/") || ct.includes("json") || ct.includes("xml")) {
+                const raw = await pageResp.text();
+                let text = raw;
+                if (ct.includes("text/html")) {
+                  const $ = cheerioLoad(raw);
+                  $("script, style, noscript").remove();
+                  text = $("body").text().replace(/\s+/g, " ").trim();
+                }
+                const capped = text.slice(0, 15000); // cap per page
+                fetchedSearchPages.push({ title: r.title, url: r.url, text: capped });
+                console.log("Fetched search page:", r.url, "len:", capped.length);
+              }
+            } catch (e) {
+              console.warn("Fetch search result failed:", r.url, e.message);
+            }
+          }
+        }
       } catch (e) {
         console.warn("Web search failed:", e.message);
       }
@@ -197,12 +241,20 @@ app.post("/api/chat", async (req, res) => {
     contents.unshift({ role: "user", parts: [{ text: DARIJA_STYLE_GUIDE }] });
     // Add the latest user message
     let userPrompt = message || "";
-    // Prefer web search when enabled; otherwise include PDF text if present
+    // Include all available context snippets together (web search, fetched URL text, fetched search pages, then PDF)
     if (webSearchSnippet) {
       userPrompt += `\n\n${webSearchSnippet}`;
-    } else if (fetchedPageText) {
+    }
+    if (fetchedPageText) {
       userPrompt += `\n\nنص من صفحة الويب المطلوبة:\n${fetchedPageText}`;
-    } else if (pdfText) {
+    }
+    if (fetchedSearchPages.length) {
+      const joined = fetchedSearchPages
+        .map(p => `من ${p.title} - ${p.url}:\n${p.text}`)
+        .join("\n\n");
+      userPrompt += `\n\nنصوص من روابط البحث:\n${joined}`;
+    }
+    if (pdfText) {
       userPrompt += `\n\nهذا نص ملف PDF المرسل: ${pdfText}`;
     }
     contents.push({
@@ -224,9 +276,16 @@ app.post("/api/chat", async (req, res) => {
       data = JSON.parse(textBody);
     } catch (e) {
       data = { raw: textBody };
+      // Include all available context snippets together (web search, fetched URL text, then PDF)
     }
 
     if (!response.ok) {
+      if (fetchedPageText) {
+        userPrompt += `\n\nنص من صفحة الويب المطلوبة:\n${fetchedPageText}`;
+      }
+      if (pdfText) {
+        userPrompt += `\n\nهذا نص ملف PDF المرسل: ${pdfText}`;
+      }
       console.error(
         "Gemini API error status:",
         response.status,

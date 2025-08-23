@@ -1,13 +1,12 @@
 import React, { useState, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { Send, Upload, FileText, X, Plus, Search, Link as LinkIcon } from 'lucide-react'
+import { Send, Upload, FileText, X, Plus, Search } from 'lucide-react'
 
 const ChatInput = ({ onSendMessage, disabled = false }) => {
   const [inputText, setInputText] = useState('')
   const [selectedFile, setSelectedFile] = useState(null)
   const [toolMenuOpen, setToolMenuOpen] = useState(false)
-  const [webSearchEnabled, setWebSearchEnabled] = useState(false)
-  const [fetchUrlEnabled, setFetchUrlEnabled] = useState(false)
+  const [combinedToolEnabled, setCombinedToolEnabled] = useState(false)
   const fileInputRef = useRef(null)
 
   const handleSend = () => {
@@ -16,13 +15,13 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
     onSendMessage({
       text: inputText,
       file: selectedFile,
-      webSearch: webSearchEnabled,
-      fetchUrl: fetchUrlEnabled
+      webSearch: combinedToolEnabled,
+      fetchUrl: combinedToolEnabled
     })
     
     setInputText('')
     setSelectedFile(null)
-    // Keep webSearchEnabled persistent - don't reset it
+  // Keep combinedToolEnabled persistent - don't reset it
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -31,9 +30,8 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
   const handleFileSelect = (event) => {
     const file = event.target.files[0]
     if (file && file.type === 'application/pdf') {
-      // Mutual exclusivity: selecting a file disables web search
-  setWebSearchEnabled(false)
-  setFetchUrlEnabled(false)
+      // Mutual exclusivity: selecting a file disables combined tool
+      setCombinedToolEnabled(false)
       setSelectedFile(file)
     }
   }
@@ -45,35 +43,23 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
     }
   }
 
-  const toggleWebSearch = () => {
-    // Mutual exclusivity: enabling web search clears file selection
-    if (!webSearchEnabled) {
+  const toggleCombinedTool = () => {
+    // Mutual exclusivity: enabling combined tool clears file selection
+    if (!combinedToolEnabled) {
       setSelectedFile(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
-  if (!webSearchEnabled) setFetchUrlEnabled(false)
-  setWebSearchEnabled(prev => !prev)
+    setCombinedToolEnabled(prev => !prev)
     setToolMenuOpen(false)
   }
 
   const openFilePicker = () => {
-    // Mutual exclusivity: choosing upload clears web search
-    setWebSearchEnabled(false)
-    setFetchUrlEnabled(false)
+  // Mutual exclusivity: choosing upload clears combined tool
+  setCombinedToolEnabled(false)
     setToolMenuOpen(false)
     fileInputRef.current?.click()
   }
 
-  const toggleFetchUrl = () => {
-    // Mutual exclusivity: enabling fetchUrl clears file and web search
-    if (!fetchUrlEnabled) {
-      setSelectedFile(null)
-      if (fileInputRef.current) fileInputRef.current.value = ''
-      setWebSearchEnabled(false)
-    }
-    setFetchUrlEnabled(prev => !prev)
-    setToolMenuOpen(false)
-  }
 
   return (
     <motion.div 
@@ -161,13 +147,9 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
                           <Upload size={16} className="me-2" />
                           رفع ملف PDF
                         </button>
-                        <button className="dropdown-item d-flex align-items-center" type="button" onClick={toggleWebSearch} disabled={disabled}>
+                        <button className="dropdown-item d-flex align-items-center" type="button" onClick={toggleCombinedTool} disabled={disabled}>
                           <Search size={16} className="me-2" />
-                          بحث على الويب {webSearchEnabled ? '✓' : ''}
-                        </button>
-                        <button className="dropdown-item d-flex align-items-center" type="button" onClick={toggleFetchUrl} disabled={disabled}>
-                          <LinkIcon size={16} className="me-2" />
-                          جلب محتوى رابط {fetchUrlEnabled ? '✓' : ''}
+                          بحث الويب + جلب الرابط {combinedToolEnabled ? '✓' : ''}
                         </button>
                       </div>
                     )}
@@ -198,13 +180,10 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
               accept=".pdf"
               onChange={handleFileSelect}
               className="d-none"
-              disabled={webSearchEnabled || fetchUrlEnabled}
+              disabled={combinedToolEnabled}
             />
-            {webSearchEnabled && (
-              <div className="mt-2 small text-primary">باش نخدم بحث على الويب (DuckDuckGo) للسؤال هذا.</div>
-            )}
-            {fetchUrlEnabled && (
-              <div className="mt-2 small text-primary">اكتب رابط (http/https) في سؤالك وباش نجيبلو المحتوى متاعو.</div>
+            {combinedToolEnabled && (
+              <div className="mt-2 small text-primary">باش نخدم بحث على الويب ونجيب محتوى أي رابط تكتبّو في سؤالك.</div>
             )}
           </div>
         </div>
