@@ -15,6 +15,7 @@ function App() {
   const [showWelcome, setShowWelcome] = useState(true)
   const [messages, setMessages] = useState([])
   const [isLoading, setIsLoading] = useState(false)
+  const [editModal, setEditModal] = useState({ open: false, message: null })
   const messagesEndRef = useRef(null)
 
   const scrollToBottom = () => {
@@ -180,28 +181,73 @@ async function readPDFFile(file) {
     return <WelcomeScreen onStartChat={startChat} />
   }
 
+  // Retry handler: resend the previous user message that led to this AI message
+  const handleRetry = async (aiMessage) => {
+    const idx = messages.findIndex(m => m.id === aiMessage.id)
+    let prevUser = null
+    for (let i = idx - 1; i >= 0; i--) {
+      if (messages[i]?.sender === 'user') { prevUser = messages[i]; break }
+    }
+    if (prevUser) {
+      await handleSendMessage({ text: prevUser.text })
+    }
+  }
+
+  // Edit handler: open modal to edit user message
+  const handleEdit = (userMessage) => {
+    setEditModal({ open: true, message: userMessage })
+  }
+
+  // Save edited user message and resend
+  const handleSaveEdit = async (newText) => {
+    setEditModal({ open: false, message: null })
+    await handleSendMessage({ text: newText })
+  }
+
   return (
     <div className="min-vh-100 tunisian-bg">
       <ChatHeader />
-      
+      {/* Edit Modal */}
+      {editModal.open && (
+        <div className="modal show d-block" tabIndex="-1" style={{ background: 'rgba(0,0,0,0.2)' }}>
+          <div className="modal-dialog">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">تعديل الرسالة</h5>
+                <button type="button" className="btn-close" onClick={() => setEditModal({ open: false, message: null })}></button>
+              </div>
+              <div className="modal-body">
+                <textarea className="form-control" defaultValue={editModal.message?.text || ''} rows={4} id="edit-textarea"></textarea>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setEditModal({ open: false, message: null })}>إلغاء</button>
+                <button type="button" className="btn btn-primary" onClick={() => handleSaveEdit(document.getElementById('edit-textarea').value)}>إرسال</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Chat Container */}
       <div className="container-fluid px-4 pb-5 chat-container" style={{ paddingTop: '100px', paddingBottom: '120px' }}>
         <div className="row justify-content-center">
           <div className="col-lg-8 col-xl-6">
             <AnimatePresence>
               {messages.map((message) => (
-                <ChatMessage key={message.id} message={message} onExport={handleExportPdf} />
+                <ChatMessage
+                  key={message.id}
+                  message={message}
+                  onExport={handleExportPdf}
+                  onRetry={handleRetry}
+                  onEdit={handleEdit}
+                />
               ))}
             </AnimatePresence>
-
             {/* Loading Indicator */}
             {isLoading && <ChatMessage isLoading={true} />}
-            
             <div ref={messagesEndRef} />
           </div>
         </div>
       </div>
-
       <ChatInput 
         onSendMessage={handleSendMessage}
         disabled={isLoading}

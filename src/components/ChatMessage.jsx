@@ -1,8 +1,9 @@
 import React from 'react'
+import ReactMarkdown from 'react-markdown'
 import { motion } from 'framer-motion'
-import { Bot, User, FileText } from 'lucide-react'
+import { Bot, User, FileText, RotateCcw, Pencil } from 'lucide-react'
 
-const ChatMessage = ({ message, isLoading = false, onExport }) => {
+const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit }) => {
   const isUser = message?.sender === 'user'
   
   const formatTime = (date) => {
@@ -76,21 +77,71 @@ const ChatMessage = ({ message, isLoading = false, onExport }) => {
               <img src={message.imagePreview} alt="uploaded" style={{ width: 88, height: 88, objectFit: 'cover', borderRadius: 8 }} />
             </div>
           )}
-          <p className="mb-1 message-rtl" style={{ fontSize: '0.9rem', lineHeight: '1.4' }}>
-            {message.text}
-          </p>
+          <div className="mb-1 message-rtl" style={{ fontSize: '0.97rem', lineHeight: '1.7', wordBreak: 'break-word' }}>
+            <ReactMarkdown
+              components={{
+                code({node, inline, className, children, ...props}) {
+                  return inline
+                    ? <code className={className} {...props}>{children}</code>
+                    : <pre className="bg-light p-2 rounded" style={{ fontSize: '0.92rem', overflowX: 'auto' }}><code className={className} {...props}>{children}</code></pre>;
+                },
+                ul({children, ...props}) {
+                  return <ul className="ms-3" {...props}>{children}</ul>;
+                },
+                ol({children, ...props}) {
+                  return <ol className="ms-3" {...props}>{children}</ol>;
+                },
+                h1({children, ...props}) {
+                  return <h1 className="fw-bold mt-3 mb-2" {...props}>{children}</h1>;
+                },
+                h2({children, ...props}) {
+                  return <h2 className="fw-bold mt-3 mb-2" {...props}>{children}</h2>;
+                },
+                h3({children, ...props}) {
+                  return <h3 className="fw-bold mt-3 mb-2" {...props}>{children}</h3>;
+                },
+                p({children, ...props}) {
+                  return <p className="mb-2" {...props}>{children}</p>;
+                }
+              }}
+            >
+              {message.text}
+            </ReactMarkdown>
+          </div>
           <div className={`text-muted ${isUser ? 'text-end' : 'text-start'} d-flex align-items-center gap-2`}>
             <small style={{ fontSize: '0.75rem', opacity: 0.7 }}>
               {formatTime(message.timestamp)}
             </small>
             {!isUser && (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-link btn-sm p-0"
+                  onClick={() => onExport && onExport(message)}
+                  title="تصدير كـ PDF"
+                >
+                  تصدير كـ PDF
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-link btn-sm p-0 ms-2"
+                  onClick={() => onRetry && onRetry(message)}
+                  title="أعد المحاولة"
+                  style={{ verticalAlign: 'middle' }}
+                >
+                  <RotateCcw size={16} />
+                </button>
+              </>
+            )}
+            {isUser && (
               <button
                 type="button"
-                className="btn btn-link btn-sm p-0"
-                onClick={() => onExport && onExport(message)}
-                title="تصدير كـ PDF"
+                className="btn btn-link btn-sm p-0 ms-2"
+                onClick={() => onEdit && onEdit(message)}
+                title="تعديل"
+                style={{ verticalAlign: 'middle' }}
               >
-                تصدير كـ PDF
+                <Pencil size={16} />
               </button>
             )}
           </div>
