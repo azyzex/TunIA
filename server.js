@@ -16,16 +16,16 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 // Replace non-Tunisian terms with Tunisian equivalents using safe Arabic word boundaries
 function enforceTunisianLexicon(input) {
-  if (!input || typeof input !== 'string') return input;
+  if (!input || typeof input !== "string") return input;
   let text = input;
   const AR = "\\u0600-\\u06FF"; // Arabic block
   const boundary = {
     pre: new RegExp(`(^|[^${AR}])`),
-    post: new RegExp(`(?=$|[^${AR}])`)
+    post: new RegExp(`(?=$|[^${AR}])`),
   };
   const apply = (fromList, to) => {
     for (const from of fromList) {
-      const pattern = new RegExp(`(^|[^${AR}])(${from})(?=$|[^${AR}])`, 'g');
+      const pattern = new RegExp(`(^|[^${AR}])(${from})(?=$|[^${AR}])`, "g");
       text = text.replace(pattern, (m, pre) => `${pre}${to}`);
     }
   };
@@ -47,13 +47,15 @@ function enforceTunisianLexicon(input) {
   // 'مين' -> 'شكون' is safe; avoid generic 'من' due to ambiguity (from vs who)
   apply(["مين"], "شكون");
   // Heuristic: replace question-start 'من' with 'شكون' if not followed by common prepositional phrases
-  text = text.replace(/(^|[.!؟\?\n\r\t\s])من(\s+)(?!غدوة|بعد|فضلك|فضل|هنا|هناك|تم|قبل|ورا|فوق|تحت)/g, (m, pre, ws) => `${pre}شكون${ws}`);
+  text = text.replace(
+    /(^|[.!؟\?\n\r\t\s])من(\s+)(?!غدوة|بعد|فضلك|فضل|هنا|هناك|تم|قبل|ورا|فوق|تحت)/g,
+    (m, pre, ws) => `${pre}شكون${ws}`
+  );
   apply(["كفى"], "يزّي");
   apply(["يكفيك"], "يزيك");
   apply(["كم"], "قدّاش");
   apply(["لماذا"], "علاش");
   apply(["الآن"], "تاو");
-  apply(["إذن"], "دونك");
   apply(["فعلاً"], "بالحقّ");
   apply(["جيّد"], "باهي");
   apply(["ليس", "مش"], "موش");
@@ -61,10 +63,55 @@ function enforceTunisianLexicon(input) {
   apply(["لأنّ"], "خاطر");
   apply(["سكب"], "صبّ");
   apply(["قفز"], "فزّ");
-  apply(["اروِ"], "سقّي");
   apply(["أمسك"], "شدّ");
+  // Contextual replacement for 'ادفع':
+  text = text.replace(/ادفع(\s+)([^.!؟\?\n\r\t\s]{0,12})/g, (m, ws, after) => {
+    // If the next word/phrase is about money/payment, use 'خلّص', else 'دزّ'
+    if (
+      /فلوس|مال|مبلغ|فاتورة|حساب|ثمن|دفع|سعر|مصروف|شراء|بيع|قيمة|دين|قرض|رسوم|تسديد|بنك|بطاقة|صرف|دفع|أجرة|راتب|معاليم|مصاريف|دفع/i.test(
+        after
+      )
+    ) {
+      return `خلّص${ws}${after}`;
+    } else {
+      return `دزّ${ws}${after}`;
+    }
+  });
+  // Standalone 'ادفع' (no context): default to 'دزّ'
   apply(["ادفع"], "دزّ");
-  apply(["فقير"], "زوالي");
+
+  // Register additional phrase mappings (skip if already present)
+  apply(["فيs+الوقتs+الحالي"], "تاو");
+  apply(["بعدs+قليل"], "توّاكة");
+  apply(["حتىs+الآن"], "تاو");
+  apply(["فيs+المستقبل"], "كان حيانا ربي");
+  apply(["لكي", "من أجل"], "خاطر");
+  apply(["معs+ذلك"], "مع هذا");
+  apply(["علىs+الأقل"], "على الأقل");
+  apply(["كمs+مرة"], "قدّاش من مرة");
+  apply(["جيد", "جيّد"], "باهِي");
+  apply(["سيء"], "موش باهِي");
+  apply(["سريع"], "فيسع");
+  apply(["بطيء"], "بشوية");
+  apply(["غداً"], "من غدوة");
+  apply(["كم"], "قدّاش");
+  apply(["كيف"], "كيفاش");
+  apply(["كل"], "برشا");
+  apply(["قليل"], "شوية");
+  apply(["كثير"], "برشا");
+  apply(["يجب"], "لازم");
+  apply(["لذلك"], "علاهذاكا");
+  apply(["لكن"], "أما");
+  apply(["بيت"], "دار");
+  apply(["طريق"], "ثنية");
+  apply(["عمل"], "خدمة");
+  apply(["أكل"], "ماكلة");
+  apply(["ذهب"], "مشى");
+  apply(["جاء"], "جا");
+  apply(["أخذ"], "خذ");
+  apply(["أعطى"], "عطا");
+  apply(["يا ترى"], "زعما");
+  apply(["حاظر"], "مريقل");
   apply(["حبة"], "كعبة");
   apply(["اذهب"], "برّا");
 
@@ -76,6 +123,7 @@ const DARIJA_STYLE_GUIDE = `
 قواعد الأسلوب الصارمة:
 - جاوب دايمًا وبشكل حصري بالدارجة التونسية وبالحروف العربية (ما تكتبش باللاتيني/فرانكو).
 - "جاوب ديما بالدارجة التونسية بكلماتها المتعارفة اليومية، وتجنّب كلمات مغربية، مصرية ولا فصحى. كان فما أكثر من كلمة، اختار التونسية."
+- استثناء: إذا طلب المستخدم صراحةً لغة أخرى (مثلاً إنجليزية/فرنسية/فصحى) لهذه الرسالة، جاوب باللغة المطلوبة في نفس الرسالة.
 - تجنّب الفصحى قدر الإمكان؛ خليك دارج تونسي واضح ومهذّب.
 - ما تستعملش إنجليزي/فرنسي إلا إذا ما فماش بديل تونسي مفهوم، وبكميات قليلة.
 - رتّب الإجابات بنقاط وقت يلزم، واستعمل عناوين فرعية وقت تفسّر مواضيع طويلة.
@@ -89,6 +137,39 @@ const DARIJA_STYLE_GUIDE = `
 app.post("/api/chat", async (req, res) => {
   const { message, history, pdfText, webSearch, image } = req.body || {};
   const { fetchUrl } = req.body || {};
+  // Language request detection (explicit instructions override Darija)
+  const detectRequestedLanguage = (msg) => {
+    if (!msg || typeof msg !== "string") return null;
+    const s = msg.toLowerCase();
+    // English
+    if (
+      /\b(in english|answer in english|english only)\b/i.test(s) ||
+      /\benglish\b/i.test(s) ||
+      /\beng\b/i.test(s) ||
+      /\banglais\b/i.test(s) ||
+      /بالإنجليزي(ة)?|بالانجليزي(ة)?/.test(msg)
+    )
+      return "en";
+    // French
+    if (
+      /\b(in french|en français|french only)\b/i.test(s) ||
+      /\bfrançais\b/i.test(s) ||
+      /بالفَرْنَسِيَّة|بالفرنسية/.test(msg)
+    )
+      return "fr";
+    // MSA Arabic (Fusha)
+    if (
+      /\b(arabic|fusha|msa|modern standard arabic)\b/i.test(s) ||
+      /بالفصحى|بالعربية\s*الفصحى/.test(msg)
+    )
+      return "ar";
+    // Darija explicitly
+    if (/بالدارجة|بلهج(ة)? تونسي(ة)?|tunisian darija/i.test(msg))
+      return "darija";
+    return null;
+  };
+  const requestedLang = detectRequestedLanguage(message);
+  const darijaPreferred = !requestedLang || requestedLang === "darija";
   // Quick request log
   console.log(
     "[POST] /api/chat",
@@ -337,6 +418,14 @@ app.post("/api/chat", async (req, res) => {
     if (pdfText) {
       userPrompt += `\n\nهذا نص ملف PDF المرسل: ${pdfText}`;
     }
+    // If a non-Darija language is explicitly requested, append a clear directive for this turn only
+    if (requestedLang === "en") {
+      userPrompt += `\n\nInstruction: Please answer strictly in English for this message.`;
+    } else if (requestedLang === "fr") {
+      userPrompt += `\n\nInstruction: Réponds strictement en français pour ce message.`;
+    } else if (requestedLang === "ar") {
+      userPrompt += `\n\nتعليمات: أجب بالعربية الفصحى فقط في هذه الرسالة.`;
+    }
     // Build final user turn parts (text + optional image)
     const parts = [{ text: userPrompt }];
     if (image && image.data && image.mimeType) {
@@ -407,9 +496,10 @@ app.post("/api/chat", async (req, res) => {
         reply
       );
     const needsRewrite =
-      latinCount > arabicCount * 0.3 ||
-      (arabicCount < 30 && latinCount > 50) ||
-      enFrHint;
+      darijaPreferred &&
+      (latinCount > arabicCount * 0.3 ||
+        (arabicCount < 30 && latinCount > 50) ||
+        enFrHint);
     if (needsRewrite && GEMINI_API_KEY) {
       try {
         const rewriteInstr = `
@@ -452,10 +542,12 @@ ${DARIJA_STYLE_GUIDE}
         console.warn("Darija rewrite error:", e.message);
       }
     }
-  // Enforce Tunisian lexicon replacements
-  reply = enforceTunisianLexicon(reply);
-  // Don't append sources at the end since they're already in the prompt/reply
-  res.json({ reply });
+    // Enforce Tunisian lexicon replacements only when Darija is preferred
+    if (darijaPreferred) {
+      reply = enforceTunisianLexicon(reply);
+    }
+    // Don't append sources at the end since they're already in the prompt/reply
+    res.json({ reply });
   } catch (err) {
     console.error("/api/chat handler error:", err);
     res.status(500).json({ error: "API error", details: err.message });
@@ -566,9 +658,9 @@ ${DARIJA_STYLE_GUIDE}
     }
 
     const md = new MarkdownIt({ html: true, linkify: true, breaks: false });
-  // Enforce Tunisian lexicon before rendering
-  refined = enforceTunisianLexicon(refined);
-  let contentHtml = "";
+    // Enforce Tunisian lexicon before rendering
+    refined = enforceTunisianLexicon(refined);
+    let contentHtml = "";
     try {
       contentHtml = md.render(refined);
     } catch (_) {
