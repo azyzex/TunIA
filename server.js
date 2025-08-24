@@ -14,17 +14,76 @@ app.use(express.json({ limit: "10mb" }));
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
+// Replace non-Tunisian terms with Tunisian equivalents using safe Arabic word boundaries
+function enforceTunisianLexicon(input) {
+  if (!input || typeof input !== 'string') return input;
+  let text = input;
+  const AR = "\\u0600-\\u06FF"; // Arabic block
+  const boundary = {
+    pre: new RegExp(`(^|[^${AR}])`),
+    post: new RegExp(`(?=$|[^${AR}])`)
+  };
+  const apply = (fromList, to) => {
+    for (const from of fromList) {
+      const pattern = new RegExp(`(^|[^${AR}])(${from})(?=$|[^${AR}])`, 'g');
+      text = text.replace(pattern, (m, pre) => `${pre}${to}`);
+    }
+  };
+
+  // Multi-word first (to avoid partial overlaps)
+  apply(["لم\\s+يعد"], "معادش");
+  apply(["نزّل", "أنزل"], "هبّط");
+  apply(["ارتفع", "صعد"], "طلع");
+  apply(["قبل\\s+قليل"], "توّاكة");
+  apply(["غداً"], "من غدوة");
+
+  // Single-word / short tokens
+  apply(["ديال"], "متاع");
+  apply(["كمان"], "زادة");
+  apply(["شيء", "شيئ"], "حاجة");
+  apply(["كامل"], "برشا");
+  apply(["كثير"], "برشا");
+  apply(["ما\\s*حدش", "ما\\s*فيش"], "ما فماش");
+  // 'مين' -> 'شكون' is safe; avoid generic 'من' due to ambiguity (from vs who)
+  apply(["مين"], "شكون");
+  // Heuristic: replace question-start 'من' with 'شكون' if not followed by common prepositional phrases
+  text = text.replace(/(^|[.!؟\?\n\r\t\s])من(\s+)(?!غدوة|بعد|فضلك|فضل|هنا|هناك|تم|قبل|ورا|فوق|تحت)/g, (m, pre, ws) => `${pre}شكون${ws}`);
+  apply(["كفى"], "يزّي");
+  apply(["يكفيك"], "يزيك");
+  apply(["كم"], "قدّاش");
+  apply(["لماذا"], "علاش");
+  apply(["الآن"], "تاو");
+  apply(["إذن"], "دونك");
+  apply(["فعلاً"], "بالحقّ");
+  apply(["جيّد"], "باهي");
+  apply(["ليس", "مش"], "موش");
+  apply(["أعطِ"], "عطي");
+  apply(["لأنّ"], "خاطر");
+  apply(["سكب"], "صبّ");
+  apply(["قفز"], "فزّ");
+  apply(["اروِ"], "سقّي");
+  apply(["أمسك"], "شدّ");
+  apply(["ادفع"], "دزّ");
+  apply(["فقير"], "زوالي");
+  apply(["حبة"], "كعبة");
+  apply(["اذهب"], "برّا");
+
+  return text;
+}
+
 // Style guide to steer Gemini to proper Tunisian Darija usage
 const DARIJA_STYLE_GUIDE = `
-قواعد الأسلوب:
-- جاوب ديما بالدارجة التونسية، مفهومة وبسيطة وبعيدة على الفصحى.
-- ما تستعملش "يا حسرة" كان وقت الحديث على الحنين للماضي/النوستالجيا. ما تعنيش "ما فهمتش".
-- كان ما فهمتش سؤال المستخدم، إسألو توضيح: "شنية تقصد بـ ...؟" وما تستعملش تعابير جارحة.
-- خليك مختصر وواضح، وكي تعطي خطوات دراسية ولا حلول، رتبهم بنقاط.
-- قلّل من الكلمات الفرنسية/الإنجليزية كان فما بديل دارج تونسي.
-- كان تلقى روابط في السياق، قول "لقيت روابط من البحث" أو "حسب البحث على الانترنت" - ما تقولش "عطيتني" لأن المستخدم ما عطاكش شي.
-- ما تقولش "ما نجمش نفتح الروابط". كان النص من رابط توفّر في المعطيات، استعملو مباشرة وردّ عليه بلا اعتذارات.
-- كان فمّا نص مستخرج من رابط، الأولوية إنك تعتمد عليه في الإجابة.
+قواعد الأسلوب الصارمة:
+- جاوب دايمًا وبشكل حصري بالدارجة التونسية وبالحروف العربية (ما تكتبش باللاتيني/فرانكو).
+- "جاوب ديما بالدارجة التونسية بكلماتها المتعارفة اليومية، وتجنّب كلمات مغربية، مصرية ولا فصحى. كان فما أكثر من كلمة، اختار التونسية."
+- تجنّب الفصحى قدر الإمكان؛ خليك دارج تونسي واضح ومهذّب.
+- ما تستعملش إنجليزي/فرنسي إلا إذا ما فماش بديل تونسي مفهوم، وبكميات قليلة.
+- رتّب الإجابات بنقاط وقت يلزم، واستعمل عناوين فرعية وقت تفسّر مواضيع طويلة.
+- كان ما فهمتش سؤال المستخدم، إسألو توضيح: "شنية تقصد بـ ...؟" بلا تعابير جارحة.
+- ما تستعملش "يا حسرة" كان للنوستالجيا فقط.
+- لو النص متوفّر من رابط/بحث، اعتمد عليه وتجنّب الاعتذارات من نوع "ما نجمش نفتح الروابط".
+- ما تذكرش المنصّة ولا مزوّد الخدمة في الرد.
+
 `;
 
 app.post("/api/chat", async (req, res) => {
@@ -40,8 +99,8 @@ app.post("/api/chat", async (req, res) => {
         hasPdfText: Boolean(pdfText),
         webSearch: Boolean(webSearch),
         fetchUrl: Boolean(fetchUrl),
-  pdfLen: pdfText ? String(pdfText).length : 0,
-  hasImage: Boolean(image && image.data && image.mimeType),
+        pdfLen: pdfText ? String(pdfText).length : 0,
+        hasImage: Boolean(image && image.data && image.mimeType),
         time: new Date().toISOString(),
       },
       null,
@@ -57,10 +116,10 @@ app.post("/api/chat", async (req, res) => {
 
   try {
     // Optional DuckDuckGo search if requested
-  let webSearchSnippet = "";
-  let webResults = [];
-  let fetchedPageText = "";
-  let fetchedSearchPages = [];
+    let webSearchSnippet = "";
+    let webResults = [];
+    let fetchedPageText = "";
+    let fetchedSearchPages = [];
     const urlMatch =
       typeof message === "string" ? message.match(/https?:\/\/\S+/i) : null;
     // Try to recover the last URL from conversation history if current message has none
@@ -77,9 +136,9 @@ app.post("/api/chat", async (req, res) => {
         }
       }
     }
-  const candidateUrl = urlMatch?.[0] || lastUrlFromHistory || null;
-  // Fetch only when the combined tool is enabled AND a URL is available
-  const shouldFetchFromUrl = Boolean(fetchUrl && candidateUrl);
+    const candidateUrl = urlMatch?.[0] || lastUrlFromHistory || null;
+    // Fetch only when the combined tool is enabled AND a URL is available
+    const shouldFetchFromUrl = Boolean(fetchUrl && candidateUrl);
     // Optional Fetch URL: extract readable text from a URL in the message
     if (shouldFetchFromUrl && typeof message === "string") {
       try {
@@ -138,7 +197,7 @@ app.post("/api/chat", async (req, res) => {
       const truncated = fetchedPageText.length >= 50000;
       return res.json({ reply: fetchedPageText, truncated });
     }
-  if (webSearch && message) {
+    if (webSearch && message) {
       try {
         const q = encodeURIComponent(String(message).slice(0, 200));
         const ddgUrl = `https://api.duckduckgo.com/?q=${q}&format=json&no_redirect=1&no_html=1&skip_disambig=1`;
@@ -209,9 +268,18 @@ app.post("/api/chat", async (req, res) => {
           const toFetch = webResults.slice(0, 2);
           for (const r of toFetch) {
             try {
-              const pageResp = await fetch(r.url, { headers: { "User-Agent": "Mozilla/5.0" } });
-              const ct = (pageResp.headers.get("content-type") || "").toLowerCase();
-              if (ct.includes("text/html") || ct.startsWith("text/") || ct.includes("json") || ct.includes("xml")) {
+              const pageResp = await fetch(r.url, {
+                headers: { "User-Agent": "Mozilla/5.0" },
+              });
+              const ct = (
+                pageResp.headers.get("content-type") || ""
+              ).toLowerCase();
+              if (
+                ct.includes("text/html") ||
+                ct.startsWith("text/") ||
+                ct.includes("json") ||
+                ct.includes("xml")
+              ) {
                 const raw = await pageResp.text();
                 let text = raw;
                 if (ct.includes("text/html")) {
@@ -220,8 +288,17 @@ app.post("/api/chat", async (req, res) => {
                   text = $("body").text().replace(/\s+/g, " ").trim();
                 }
                 const capped = text.slice(0, 15000); // cap per page
-                fetchedSearchPages.push({ title: r.title, url: r.url, text: capped });
-                console.log("Fetched search page:", r.url, "len:", capped.length);
+                fetchedSearchPages.push({
+                  title: r.title,
+                  url: r.url,
+                  text: capped,
+                });
+                console.log(
+                  "Fetched search page:",
+                  r.url,
+                  "len:",
+                  capped.length
+                );
               }
             } catch (e) {
               console.warn("Fetch search result failed:", r.url, e.message);
@@ -235,8 +312,8 @@ app.post("/api/chat", async (req, res) => {
 
     // Only keep the last 30 turns
     const last30 = Array.isArray(history) ? history.slice(-30) : [];
-  // Convert history to Gemini API format with valid roles
-  const contents = last30.map((turn) => ({
+    // Convert history to Gemini API format with valid roles
+    const contents = last30.map((turn) => ({
       role: turn.sender === "user" ? "user" : "model",
       parts: [{ text: turn.text }],
     }));
@@ -253,7 +330,7 @@ app.post("/api/chat", async (req, res) => {
     }
     if (fetchedSearchPages.length) {
       const joined = fetchedSearchPages
-        .map(p => `من ${p.title} - ${p.url}:\n${p.text}`)
+        .map((p) => `من ${p.title} - ${p.url}:\n${p.text}`)
         .join("\n\n");
       userPrompt += `\n\nنصوص من روابط البحث:\n${joined}`;
     }
@@ -263,7 +340,12 @@ app.post("/api/chat", async (req, res) => {
     // Build final user turn parts (text + optional image)
     const parts = [{ text: userPrompt }];
     if (image && image.data && image.mimeType) {
-      parts.push({ inlineData: { mimeType: String(image.mimeType), data: String(image.data) } });
+      parts.push({
+        inlineData: {
+          mimeType: String(image.mimeType),
+          data: String(image.data),
+        },
+      });
     }
     contents.push({ role: "user", parts });
     // No need to add an extra instruction; covered by style guide
@@ -272,7 +354,13 @@ app.post("/api/chat", async (req, res) => {
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contents }),
+      body: JSON.stringify({
+        systemInstruction: {
+          role: "system",
+          parts: [{ text: DARIJA_STYLE_GUIDE }],
+        },
+        contents,
+      }),
     });
 
     const textBody = await response.text();
@@ -285,27 +373,89 @@ app.post("/api/chat", async (req, res) => {
     }
 
     if (!response.ok) {
-      console.error("Model API error status:", response.status, response.statusText);
+      console.error(
+        "Model API error status:",
+        response.status,
+        response.statusText
+      );
       console.error("Model API error body:", textBody);
       // Friendly Darija message without exposing provider/model
-      const friendly = "صارت مشكلة تقنية مؤقتة في الخدمة. جرّب بعد شوية ولا قصّر شوية من الصورة/المحتوى. سامحني.";
+      const friendly =
+        "صارت مشكلة تقنية مؤقتة في الخدمة. جرّب بعد شوية ولا قصّر شوية من الصورة/المحتوى. سامحني.";
       return res.json({ reply: friendly, softError: true });
     }
 
     console.log("Gemini API response:", JSON.stringify(data, null, 2));
-  let reply = data?.candidates?.[0]?.content?.parts?.[0]?.text || "ما نجمتش نكوّن ردّ مناسب تاو.";
+    let reply =
+      data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+      "ما نجمتش نكوّن ردّ مناسب تاو.";
     // Sanitize known misused phrases (light-touch). Can be expanded.
     try {
       reply = reply
         // remove standalone/misplaced "يا حسرة" occurrences
-    .replace(/(^|\s)يا\s*حسرة[،,.!؟]*\s*/g, (m, p1) => (p1 ? " " : ""))
-    // hide model/provider mentions
-    .replace(/\bgemini\b/gi, "")
-    .replace(/\bgoogle\b/gi, "")
+        .replace(/(^|\s)يا\s*حسرة[،,.!؟]*\s*/g, (m, p1) => (p1 ? " " : ""))
+        // hide model/provider mentions
+        .replace(/\bgemini\b/gi, "")
+        .replace(/\bgoogle\b/gi, "")
         .trim();
     } catch (_) {}
-    // Don't append sources at the end since they're already in the prompt/reply
-    res.json({ reply });
+    // Guard-rail: if the reply drifts to non-Darija (Latin-heavy or obvious EN/FR), rewrite once into Tunisian Darija (Arabic script)
+    const latinCount = (reply.match(/[A-Za-z]/g) || []).length;
+    const arabicCount = (reply.match(/[\u0600-\u06FF]/g) || []).length;
+    const enFrHint =
+      /(\bthe\b|\band\b|\bis\b|\bwith\b|\bfor\b|\bto\b|\ble\b|\bla\b|\bles\b|\bun\b|\bune\b|\bdes\b|\bavec\b|\bpour\b)/i.test(
+        reply
+      );
+    const needsRewrite =
+      latinCount > arabicCount * 0.3 ||
+      (arabicCount < 30 && latinCount > 50) ||
+      enFrHint;
+    if (needsRewrite && GEMINI_API_KEY) {
+      try {
+        const rewriteInstr = `
+${DARIJA_STYLE_GUIDE}
+حوّل النص التالي إلى دارجة تونسية واضحة وبالحروف العربية فقط (مش لاتيني)، بلا فصحى وبلا إنجليزي/فرنسي إلا للضرورة القصوى. حافظ على نفس المعنى والمحتوى.`;
+        const rewriteResp = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            systemInstruction: {
+              role: "system",
+              parts: [{ text: DARIJA_STYLE_GUIDE }],
+            },
+            contents: [
+              { role: "user", parts: [{ text: rewriteInstr }] },
+              { role: "user", parts: [{ text: reply.slice(0, 16000) }] },
+            ],
+            generationConfig: { temperature: 0.4, maxOutputTokens: 2048 },
+          }),
+        });
+        const rewriteBody = await rewriteResp.text();
+        if (rewriteResp.ok) {
+          let rdata;
+          try {
+            rdata = JSON.parse(rewriteBody);
+          } catch {
+            rdata = { raw: rewriteBody };
+          }
+          let out = rdata?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          if (out) {
+            reply = out
+              .replace(/\bgemini\b/gi, "")
+              .replace(/\bgoogle\b/gi, "")
+              .trim();
+          }
+        } else {
+          console.warn("Rewrite step failed:", rewriteResp.status, rewriteBody);
+        }
+      } catch (e) {
+        console.warn("Darija rewrite error:", e.message);
+      }
+    }
+  // Enforce Tunisian lexicon replacements
+  reply = enforceTunisianLexicon(reply);
+  // Don't append sources at the end since they're already in the prompt/reply
+  res.json({ reply });
   } catch (err) {
     console.error("/api/chat handler error:", err);
     res.status(500).json({ error: "API error", details: err.message });
@@ -319,15 +469,121 @@ app.post("/api/export-pdf", async (req, res) => {
     if (!aiText) {
       return res.status(400).json({ error: "نقص شوية معلومات لإنشاء ال-PDF." });
     }
-    const md = new MarkdownIt({ html: true, linkify: true, breaks: false });
-    let contentHtml = "";
+
+    // Attempt to refine the content using the model (Darija academic long-form, markdown output)
+    let refined = aiText;
     try {
-      contentHtml = md.render(aiText);
-    } catch (_) {
-      contentHtml = `<pre>${aiText.replace(/[&<>]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[s]))}</pre>`;
+      if (!GEMINI_API_KEY) {
+        console.warn(
+          "Missing GEMINI_API_KEY; exporting existing text without refinement."
+        );
+      } else {
+        const REFINE_INSTRUCTION = `
+${DARIJA_STYLE_GUIDE}
+
+حول المسودة التالية إلى تقرير علمي أكاديمي طويل ومُنظّم بلهجة تونسية واضحة ورصينة:
+- استعمل عناوين رئيسية وثانوية (##، ###) مع هيكلة واضحة: مقدمة، خلفية/نظريات، منهجية/خطوات، تحليل/نقاش، أمثلة تطبيقية، حدود العمل، وخلاصة.
+- كثّر التفاصيل والأمثلة والشرح، واستعمل قوائم نقطية أين يلزم.
+- لو فما مفاهيم أساسية، عرّفها بطريقة دقيقة وبسيطة.
+- ما تركّبش حقائق غير صحيحة. كان المعلومة مش مؤكدة، قول "حسب المعارف العامة".
+- خرّج النتيجة بنص Markdown فقط، بلا كود fences وبلا ذكر المنصّة ولا المزوّد.
+- خدم باللغة: الدارجة التونسية، وبأسلوب أكاديمي مهذّب.
+`;
+
+        const contents = [
+          { role: "user", parts: [{ text: REFINE_INSTRUCTION }] },
+          {
+            role: "user",
+            parts: [
+              {
+                text: `سؤال المستخدم (للتركيز):\n${String(
+                  userPrompt || ""
+                ).slice(0, 4000)}`,
+              },
+            ],
+          },
+          {
+            role: "user",
+            parts: [
+              {
+                text: `المسودة الأصلية للجواب:\n${String(aiText).slice(
+                  0,
+                  12000
+                )}`,
+              },
+            ],
+          },
+          {
+            role: "user",
+            parts: [{ text: "رجّع النص الأكاديمي المفصل بنسق Markdown فقط." }],
+          },
+        ];
+
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents,
+            generationConfig: {
+              temperature: 0.7,
+              maxOutputTokens: 8192,
+            },
+          }),
+        });
+        const textBody = await response.text();
+        if (!response.ok) {
+          console.error(
+            "Refine API error:",
+            response.status,
+            response.statusText
+          );
+          console.error(textBody);
+        } else {
+          let data;
+          try {
+            data = JSON.parse(textBody);
+          } catch {
+            data = { raw: textBody };
+          }
+          let out = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          if (out) {
+            // Light sanitize
+            out = out
+              .replace(/```[a-z]*\n|```/g, "")
+              .replace(/\bgemini\b/gi, "")
+              .replace(/\bgoogle\b/gi, "")
+              .trim();
+            refined = out;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn(
+        "Refinement step failed, falling back to original text:",
+        e.message
+      );
     }
 
-    const safePrompt = userPrompt ? `<blockquote class="prompt">${String(userPrompt).replace(/[&<>]/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[s]))}</blockquote>` : "";
+    const md = new MarkdownIt({ html: true, linkify: true, breaks: false });
+  // Enforce Tunisian lexicon before rendering
+  refined = enforceTunisianLexicon(refined);
+  let contentHtml = "";
+    try {
+      contentHtml = md.render(refined);
+    } catch (_) {
+      contentHtml = `<pre>${refined.replace(
+        /[&<>]/g,
+        (s) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[s])
+      )}</pre>`;
+    }
+
+    const safePrompt = userPrompt
+      ? `<blockquote class="prompt">${String(userPrompt).replace(
+          /[&<>]/g,
+          (s) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[s])
+        )}</blockquote>`
+      : "";
 
     const html = `<!doctype html>
 <html lang="ar" dir="rtl">
@@ -373,18 +629,26 @@ app.post("/api/export-pdf", async (req, res) => {
 </body>
 </html>`;
 
-    const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const browser = await puppeteer.launch({
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0' });
-    const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '20mm', bottom: '20mm', left: '15mm', right: '15mm' } });
+    await page.setContent(html, { waitUntil: "networkidle0" });
+    const pdfBuffer = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: { top: "20mm", bottom: "20mm", left: "15mm", right: "15mm" },
+    });
     await browser.close();
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename="export.pdf"');
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", 'attachment; filename="export.pdf"');
     return res.send(pdfBuffer);
   } catch (e) {
-    console.error('PDF generation failed:', e);
-    return res.status(500).json({ error: 'تعطلت خدمة إنشاء ال-PDF مؤقتاً. جرّب بعد شوية.' });
+    console.error("PDF generation failed:", e);
+    return res
+      .status(500)
+      .json({ error: "تعطلت خدمة إنشاء ال-PDF مؤقتاً. جرّب بعد شوية." });
   }
 });
 
