@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import { motion } from 'framer-motion'
 import { Bot, User, FileText, RotateCcw, Pencil, Copy, Download, Loader2 } from 'lucide-react'
 
-const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, onDownloadPdf, onConfirmPdfDownload, retryCount, downloadingPdf }) => {
+const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, onDownloadPdf, onConfirmPdfDownload, retryCount, downloadingPdf, generatingPreview }) => {
   const isUser = message?.sender === 'user'
   
   const formatTime = (date) => {
@@ -266,18 +266,23 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
         >
           <Copy size={14} />
         </button>
-        {!message.isWelcomeMessage && (
+        {!message.isWelcomeMessage && !message.isPdfPreview && (
           <button
             type="button"
             className="btn btn-link btn-sm p-0 ms-2"
             onClick={() => onDownloadPdf && onDownloadPdf(message.id)}
             title="تحميل كـ PDF"
             style={{ verticalAlign: 'middle' }}
+            disabled={generatingPreview === message.id}
           >
-            <Download size={14} />
+            {generatingPreview === message.id ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Download size={14} />
+            )}
           </button>
         )}
-        {!message.isWelcomeMessage && (
+        {!message.isWelcomeMessage && !message.isPdfPreview && (
           <button
             type="button"
             className="btn btn-link btn-sm p-0 ms-2"

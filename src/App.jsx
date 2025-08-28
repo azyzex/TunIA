@@ -18,6 +18,7 @@ function App() {
   const [editModal, setEditModal] = useState({ open: false, message: null })
   const [retryCount, setRetryCount] = useState({}) // Track retry counts per message
   const [downloadingPdf, setDownloadingPdf] = useState(null) // Track which message PDF is being downloaded
+  const [generatingPreview, setGeneratingPreview] = useState(null) // Track which message is generating PDF preview
   const messagesEndRef = useRef(null)
 
   const scrollToBottom = () => {
@@ -65,6 +66,7 @@ function App() {
 
   // New handler for the PDF export tool workflow
   const handleDownloadPdf = async (messageId) => {
+    setGeneratingPreview(messageId) // Set loading state
     try {
       const response = await fetch('http://localhost:3001/export-pdf', {
         method: 'POST',
@@ -96,6 +98,8 @@ function App() {
         timestamp: new Date()
       }
       setMessages(prev => [...prev, errorMessage])
+    } finally {
+      setGeneratingPreview(null) // Clear loading state
     }
   }
 
@@ -359,7 +363,7 @@ async function readPDFFile(file) {
         </div>
       )}
       {/* Chat Container */}
-      <div className="container-fluid px-4 pb-5 chat-container" style={{ paddingTop: '100px', paddingBottom: '120px' }}>
+      <div className="container-fluid px-4 pb-50 chat-container" style={{ paddingTop: '100px', paddingBottom: '200px' }}>
         <div className="row justify-content-center">
           <div className="col-lg-8 col-xl-6">
             <AnimatePresence>
@@ -374,6 +378,7 @@ async function readPDFFile(file) {
                   onEdit={handleEdit}
                   retryCount={message.sender === 'user' ? retryCount[message.id] || 0 : 0}
                   downloadingPdf={downloadingPdf}
+                  generatingPreview={generatingPreview}
                 />
               ))}
             </AnimatePresence>
@@ -385,7 +390,7 @@ async function readPDFFile(file) {
       </div>
       <ChatInput 
         onSendMessage={handleSendMessage}
-        disabled={isLoading}
+        disabled={isLoading || generatingPreview}
       />
     </div>
   )
