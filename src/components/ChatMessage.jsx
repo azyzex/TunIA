@@ -80,92 +80,100 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
         </div>
 
         {/* Message Bubble */}
-  {isUser ? (
-    <div className="chat-bubble chat-bubble-user">
-      {message.file && (
-        <div className="d-flex align-items-center mb-2 p-2 rounded"
-             style={{ backgroundColor: 'rgba(0, 0, 0, 0.1)' }}>
-          <FileText size={16} className="me-2" />
-          <small>{message.file.name}</small>
-        </div>
-      )}
-      {message.imagePreview && (
-        <div className="mb-2">
-          <img src={message.imagePreview} alt="uploaded" style={{ width: 88, height: 88, objectFit: 'cover', borderRadius: 8 }} />
-        </div>
-      )}
-      <div className="mb-1 message-rtl" style={{ fontSize: '0.97rem', lineHeight: '1.7', wordBreak: 'break-word' }}>
-        <ReactMarkdown
-          components={{
-            code({node, inline, className, children, ...props}) {
-              const codeString = String(children).replace(/\n$/, '')
-              if (inline) {
-                return <code className={className} {...props}>{children}</code>
-              }
-              return (
-                <div className="position-relative">
-                  <pre className="bg-light p-2 rounded text-start" style={{ fontSize: '0.92rem', overflowX: 'auto', direction: 'ltr' }}>
-                    <code className={className} {...props}>{children}</code>
-                  </pre>
-                  <button 
-                    onClick={() => copyToClipboard(codeString)}
-                    className="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-1"
-                    style={{ fontSize: '0.7rem' }}
-                    title="نسخ الكود"
-                  >
-                    <Copy size={12} />
-                  </button>
+        {isUser ? (
+          <div className="d-flex flex-column align-items-end">
+            <div className="chat-bubble chat-bubble-user">
+              {message.file && (
+                <div className="d-flex align-items-center mb-2 p-2 rounded"
+                     style={{ backgroundColor: 'rgba(0, 0, 0, 0.1)' }}>
+                  <FileText size={16} className="me-2" />
+                  <small>{message.file.name}</small>
                 </div>
-              );
-            },
-            ul({children, ...props}) {
-              return <ul className="ms-3" {...props}>{children}</ul>;
-            },
-            ol({children, ...props}) {
-              return <ol className="ms-3" {...props}>{children}</ol>;
-            },
-            h1({children, ...props}) {
-              return <h1 className="fw-bold mt-3 mb-2" {...props}>{children}</h1>;
-            },
-            h2({children, ...props}) {
-              return <h2 className="fw-bold mt-3 mb-2" {...props}>{children}</h2>;
-            },
-            h3({children, ...props}) {
-              return <h3 className="fw-bold mt-3 mb-2" {...props}>{children}</h3>;
-            },
-            p({children, ...props}) {
-              return <p className="mb-2" {...props}>{children}</p>;
-            }
-          }}
-        >
-          {message.text}
-        </ReactMarkdown>
-      </div>
-      <div className={`text-muted text-end d-flex align-items-center gap-2`}>
-        <small style={{ fontSize: '0.75rem', opacity: 0.7 }}>
-          {formatTime(message.timestamp)}
-        </small>
-        <button
-          type="button"
-          className="btn btn-link btn-sm p-0 ms-1"
-          onClick={() => copyToClipboard(message.text)}
-          title="نسخ"
-          style={{ verticalAlign: 'middle' }}
-        >
-          <Copy size={14} />
-        </button>
-        <button
-          type="button"
-          className="btn btn-link btn-sm p-0 ms-2"
-          onClick={() => onEdit && onEdit(message)}
-          title="تعديل"
-          style={{ verticalAlign: 'middle' }}
-        >
-          <Pencil size={16} />
-        </button>
-      </div>
-    </div>
-  ) : (
+              )}
+              {message.imagePreview && (
+                <div className="mb-2">
+                  <img src={message.imagePreview} alt="uploaded" style={{ width: 88, height: 88, objectFit: 'cover', borderRadius: 8 }} />
+                </div>
+              )}
+              <div className="mb-1 message-rtl" style={{ fontSize: '0.97rem', lineHeight: '1.7', wordBreak: 'break-word' }}>
+                <ReactMarkdown
+                  components={{
+                    code({node, inline, className, children, ...props}) {
+                      const codeString = String(children).replace(/\n$/, '')
+                      if (inline) {
+                        return <code className={className} {...props}>{children}</code>
+                      }
+                      return (
+                        <div className="position-relative">
+                          <pre className="bg-light p-2 rounded text-start" style={{ fontSize: '0.92rem', overflowX: 'auto', direction: 'ltr' }}>
+                            <code className={className} {...props}>{children}</code>
+                          </pre>
+                          <button 
+                            onClick={() => copyToClipboard(codeString)}
+                            className="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-1"
+                            style={{ fontSize: '0.7rem' }}
+                            title="نسخ الكود"
+                          >
+                            <Copy size={12} />
+                          </button>
+                        </div>
+                      );
+                    },
+                    ul({children, ...props}) {
+                      return <ul className="ms-3" {...props}>{children}</ul>;
+                    },
+                    ol({children, ...props}) {
+                      return <ol className="ms-3" {...props}>{children}</ol>;
+                    },
+                    h1({children, ...props}) {
+                      return <h1 className="fw-bold mt-3 mb-2" {...props}>{children}</h1>;
+                    },
+                    h2({children, ...props}) {
+                      return <h2 className="fw-bold mt-3 mb-2" {...props}>{children}</h2>;
+                    },
+                    h3({children, ...props}) {
+                      return <h3 className="fw-bold mt-3 mb-2" {...props}>{children}</h3>;
+                    },
+                    p({children, ...props}) {
+                      return <p className="mb-2" {...props}>{children}</p>;
+                    }
+                  }}
+                >
+                  {message.text}
+                </ReactMarkdown>
+              </div>
+            </div>
+            {/* Timestamp and actions outside the bubble */}
+            <div className={`text-muted text-end d-flex align-items-center justify-content-end gap-2 mt-1`} style={{ fontSize: '0.75rem' }}>
+              <small style={{ opacity: 0.7 }}>
+                {formatTime(message.timestamp)}
+              </small>
+              {retryCount > 0 && (
+                <small style={{ opacity: 0.7 }}>
+                  • {retryCount} إعادة محاولة
+                </small>
+              )}
+              <button
+                type="button"
+                className="btn btn-link btn-sm p-0 ms-1"
+                onClick={() => copyToClipboard(message.text)}
+                title="نسخ"
+                style={{ verticalAlign: 'middle' }}
+              >
+                <Copy size={14} />
+              </button>
+              <button
+                type="button"
+                className="btn btn-link btn-sm p-0 ms-2"
+                onClick={() => onEdit && onEdit(message)}
+                title="تعديل"
+                style={{ verticalAlign: 'middle' }}
+              >
+                <Pencil size={16} />
+              </button>
+            </div>
+          </div>
+        ) : (
     <div className="w-100 mb-1">
       {message.file && (
         <div className="d-flex align-items-center mb-2 p-2 rounded"

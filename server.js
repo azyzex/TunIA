@@ -116,6 +116,11 @@ function enforceTunisianLexicon(input) {
   apply(["حاظر"], "مريقل");
   apply(["حبة"], "كعبة");
   apply(["اذهب"], "برّا");
+  apply(["عندمى"], "وقتلي");
+  apply(["أضن"], "ضاهرلي");
+  apply(["الملل"], "القلق");
+  apply(["سيارة"], "كرهبة");
+  apply(["بدون أن"], "منغير ما");
 
   return text;
 }
