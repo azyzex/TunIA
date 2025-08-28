@@ -242,7 +242,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
             ) : (
               <>
                 <Download size={16} />
-                <span>تأكيد تحميل الـ PDF</span>
+                <span>  PDF تحميل</span>
               </>
             )}
           </button>

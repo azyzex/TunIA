@@ -589,19 +589,23 @@ app.post("/export-pdf", async (req, res) => {
     }
 
     // Extract AI responses from messages
-    const aiMessages = messages.filter(msg => msg.sender === 'ai' && !msg.isWelcomeMessage);
+    const aiMessages = messages.filter(
+      (msg) => msg.sender === "ai" && !msg.isWelcomeMessage
+    );
     if (aiMessages.length === 0) {
       return res.status(400).json({ error: "ما فماش رسائل AI للتصدير." });
     }
 
     // Combine all AI content
-    let combinedContent = aiMessages.map(msg => msg.text).join('\n\n');
+    let combinedContent = aiMessages.map((msg) => msg.text).join("\n\n");
 
     // Transform the content to academic format using Gemini
     let refinedContent = combinedContent;
     try {
       if (!GEMINI_API_KEY) {
-        console.warn("Missing GEMINI_API_KEY; showing original text without refinement.");
+        console.warn(
+          "Missing GEMINI_API_KEY; showing original text without refinement."
+        );
       } else {
         const REFINE_INSTRUCTION = `
 ${DARIJA_STYLE_GUIDE}
@@ -621,7 +625,9 @@ ${DARIJA_STYLE_GUIDE}
             role: "user",
             parts: [
               {
-                text: `المحتوى المراد تحويله للصيغة الأكاديمية:\n${String(combinedContent).slice(0, 12000)}`,
+                text: `المحتوى المراد تحويله للصيغة الأكاديمية:\n${String(
+                  combinedContent
+                ).slice(0, 12000)}`,
               },
             ],
           },
@@ -643,10 +649,14 @@ ${DARIJA_STYLE_GUIDE}
             },
           }),
         });
-        
+
         const textBody = await response.text();
         if (!response.ok) {
-          console.error("Refine API error:", response.status, response.statusText);
+          console.error(
+            "Refine API error:",
+            response.status,
+            response.statusText
+          );
           console.error(textBody);
         } else {
           let data;
@@ -668,7 +678,10 @@ ${DARIJA_STYLE_GUIDE}
         }
       }
     } catch (e) {
-      console.warn("Refinement step failed, falling back to original text:", e.message);
+      console.warn(
+        "Refinement step failed, falling back to original text:",
+        e.message
+      );
     }
 
     // Create the preview message with the actual refined content
@@ -678,14 +691,14 @@ ${DARIJA_STYLE_GUIDE}
 
 ${refinedContent}`;
 
-    return res.json({ 
-      success: true, 
-      previewContent: previewContent
+    return res.json({
+      success: true,
+      previewContent: previewContent,
     });
   } catch (e) {
     console.error("PDF preview generation failed:", e);
-    return res.status(500).json({ 
-      error: "صارت مشكلة في تجهيز المعاينة للـ PDF. جرّب بعد شوية." 
+    return res.status(500).json({
+      error: "صارت مشكلة في تجهيز المعاينة للـ PDF. جرّب بعد شوية.",
     });
   }
 });
@@ -699,13 +712,15 @@ app.post("/download-pdf", async (req, res) => {
     }
 
     // Extract AI responses from messages (excluding welcome message)
-    const aiMessages = messages.filter(msg => msg.sender === 'ai' && !msg.isWelcomeMessage);
+    const aiMessages = messages.filter(
+      (msg) => msg.sender === "ai" && !msg.isWelcomeMessage
+    );
     if (aiMessages.length === 0) {
       return res.status(400).json({ error: "ما فماش رسائل AI للتصدير." });
     }
 
     // Combine all AI content
-    let combinedContent = aiMessages.map(msg => msg.text).join('\n\n');
+    let combinedContent = aiMessages.map((msg) => msg.text).join("\n\n");
 
     // Attempt to refine the content using the model (Darija academic long-form, markdown output)
     let refined = combinedContent;
@@ -733,7 +748,9 @@ ${DARIJA_STYLE_GUIDE}
             role: "user",
             parts: [
               {
-                text: `المحتوى المراد تحويله للصيغة الأكاديمية:\n${String(combinedContent).slice(0, 12000)}`,
+                text: `المحتوى المراد تحويله للصيغة الأكاديمية:\n${String(
+                  combinedContent
+                ).slice(0, 12000)}`,
               },
             ],
           },
@@ -857,7 +874,10 @@ ${DARIJA_STYLE_GUIDE}
     await browser.close();
 
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", 'attachment; filename="chat-export.pdf"');
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="chat-export.pdf"'
+    );
     return res.send(pdfBuffer);
   } catch (e) {
     console.error("PDF generation failed:", e);
