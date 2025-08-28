@@ -53,25 +53,31 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
   }
 
   const toggleCombinedTool = () => {
-    // Mutual exclusivity: enabling combined tool clears file selection
+    // Mutual exclusivity: enabling combined tool clears file selection and image
     if (!combinedToolEnabled) {
       setSelectedFile(null)
+      setSelectedImage(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
+      if (imageInputRef.current) imageInputRef.current.value = ''
     }
     setCombinedToolEnabled(prev => !prev)
     setToolMenuOpen(false)
   }
 
   const openFilePicker = () => {
-  // Mutual exclusivity: choosing upload clears combined tool
+  // Mutual exclusivity: choosing upload clears combined tool and image
   setCombinedToolEnabled(false)
+  setSelectedImage(null)
+  if (imageInputRef.current) imageInputRef.current.value = ''
     setToolMenuOpen(false)
     fileInputRef.current?.click()
   }
 
   const openImagePicker = () => {
-    // Mutual exclusivity: choosing upload clears combined tool
+    // Mutual exclusivity: choosing image upload clears combined tool and file
     setCombinedToolEnabled(false)
+    setSelectedFile(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
     setToolMenuOpen(false)
     imageInputRef.current?.click()
   }
@@ -94,7 +100,8 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
       r.onerror = reject
       r.readAsDataURL(file)
     })
-  // Mutual exclusivity: clear selected PDF when selecting an image
+  // Mutual exclusivity: clear selected PDF and combined tool when selecting an image
+  setCombinedToolEnabled(false)
   setSelectedFile(null)
   if (fileInputRef.current) fileInputRef.current.value = ''
   setSelectedImage({ file, previewUrl, mimeType: file.type, base64 })

@@ -99,8 +99,10 @@ function enforceTunisianLexicon(input) {
   apply(["كل"], "برشا");
   apply(["قليل"], "شوية");
   apply(["كثير"], "برشا");
+  apply(["بزاف"], "برشا");
   apply(["يجب"], "لازم");
   apply(["لذلك"], "علاهذاكا");
+  apply(["تعتمد "], "تعامل");
   apply(["لكن"], "أما");
   apply(["بيت"], "دار");
   apply(["طريق"], "ثنية");
@@ -137,7 +139,8 @@ const DARIJA_STYLE_GUIDE = `
 `;
 
 app.post("/api/chat", async (req, res) => {
-  const { message, history, pdfText, webSearch, image } = req.body || {};
+  const { message, history, pdfText, webSearch, image, pdfExport } =
+    req.body || {};
   const { fetchUrl } = req.body || {};
   // Language request detection (explicit instructions override Darija)
   const detectRequestedLanguage = (msg) => {
@@ -548,6 +551,27 @@ ${DARIJA_STYLE_GUIDE}
     if (darijaPreferred) {
       reply = enforceTunisianLexicon(reply);
     }
+
+    // Handle PDF export case: format the content and provide metadata for client-side download
+    if (pdfExport) {
+      // Format the reply for PDF display with Markdown
+      const pdfContent = `# الردّ من الـ AI
+
+${reply}
+
+---
+*تم التوليد في: ${new Date().toLocaleString("ar-TN")}*
+`;
+
+      return res.json({
+        reply: `هاذو المعلومات اللي باش تكون في الـ PDF:
+
+${pdfContent}`,
+        isPdfExport: true,
+        pdfContent: pdfContent,
+      });
+    }
+
     // Don't append sources at the end since they're already in the prompt/reply
     res.json({ reply });
   } catch (err) {
@@ -556,26 +580,33 @@ ${DARIJA_STYLE_GUIDE}
   }
 });
 
-// Generate Academic PDF route
-app.post("/api/export-pdf", async (req, res) => {
+// PDF Preview endpoint - shows what will be in the PDF
+app.post("/export-pdf", async (req, res) => {
   try {
-    const { userPrompt, aiText } = req.body || {};
-    if (!aiText) {
+    const { messages } = req.body || {};
+    if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: "نقص شوية معلومات لإنشاء ال-PDF." });
     }
 
-    // Attempt to refine the content using the model (Darija academic long-form, markdown output)
-    let refined = aiText;
+    // Extract AI responses from messages
+    const aiMessages = messages.filter(msg => msg.sender === 'ai' && !msg.isWelcomeMessage);
+    if (aiMessages.length === 0) {
+      return res.status(400).json({ error: "ما فماش رسائل AI للتصدير." });
+    }
+
+    // Combine all AI content
+    let combinedContent = aiMessages.map(msg => msg.text).join('\n\n');
+
+    // Transform the content to academic format using Gemini
+    let refinedContent = combinedContent;
     try {
       if (!GEMINI_API_KEY) {
-        console.warn(
-          "Missing GEMINI_API_KEY; exporting existing text without refinement."
-        );
+        console.warn("Missing GEMINI_API_KEY; showing original text without refinement.");
       } else {
         const REFINE_INSTRUCTION = `
 ${DARIJA_STYLE_GUIDE}
 
-حول المسودة التالية إلى تقرير علمي أكاديمي طويل ومُنظّم بلهجة تونسية واضحة ورصينة:
+حول المحتوى التالي إلى تقرير علمي أكاديمي طويل ومُنظّم بلهجة تونسية واضحة ورصينة:
 - استعمل عناوين رئيسية وثانوية (##، ###) مع هيكلة واضحة: مقدمة، خلفية/نظريات، منهجية/خطوات، تحليل/نقاش، أمثلة تطبيقية، حدود العمل، وخلاصة.
 - كثّر التفاصيل والأمثلة والشرح، واستعمل قوائم نقطية أين يلزم.
 - لو فما مفاهيم أساسية، عرّفها بطريقة دقيقة وبسيطة.
@@ -590,20 +621,119 @@ ${DARIJA_STYLE_GUIDE}
             role: "user",
             parts: [
               {
-                text: `سؤال المستخدم (للتركيز):\n${String(
-                  userPrompt || ""
-                ).slice(0, 4000)}`,
+                text: `المحتوى المراد تحويله للصيغة الأكاديمية:\n${String(combinedContent).slice(0, 12000)}`,
               },
             ],
           },
           {
             role: "user",
+            parts: [{ text: "رجّع النص الأكاديمي المفصل بنسق Markdown فقط." }],
+          },
+        ];
+
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents,
+            generationConfig: {
+              temperature: 0.7,
+              maxOutputTokens: 8192,
+            },
+          }),
+        });
+        
+        const textBody = await response.text();
+        if (!response.ok) {
+          console.error("Refine API error:", response.status, response.statusText);
+          console.error(textBody);
+        } else {
+          let data;
+          try {
+            data = JSON.parse(textBody);
+          } catch {
+            data = { raw: textBody };
+          }
+          let out = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          if (out) {
+            // Light sanitize
+            out = out
+              .replace(/```[a-z]*\n|```/g, "")
+              .replace(/\bgemini\b/gi, "")
+              .replace(/\bgoogle\b/gi, "")
+              .trim();
+            refinedContent = out;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Refinement step failed, falling back to original text:", e.message);
+    }
+
+    // Create the preview message with the actual refined content
+    const previewContent = `هاذا هو المحتوى إلي باش يتكتب في ملف الـ PDF:
+
+---
+
+${refinedContent}`;
+
+    return res.json({ 
+      success: true, 
+      previewContent: previewContent
+    });
+  } catch (e) {
+    console.error("PDF preview generation failed:", e);
+    return res.status(500).json({ 
+      error: "صارت مشكلة في تجهيز المعاينة للـ PDF. جرّب بعد شوية." 
+    });
+  }
+});
+
+// PDF Download endpoint - actually generates the PDF
+app.post("/download-pdf", async (req, res) => {
+  try {
+    const { messages } = req.body || {};
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: "نقص شوية معلومات لإنشاء ال-PDF." });
+    }
+
+    // Extract AI responses from messages (excluding welcome message)
+    const aiMessages = messages.filter(msg => msg.sender === 'ai' && !msg.isWelcomeMessage);
+    if (aiMessages.length === 0) {
+      return res.status(400).json({ error: "ما فماش رسائل AI للتصدير." });
+    }
+
+    // Combine all AI content
+    let combinedContent = aiMessages.map(msg => msg.text).join('\n\n');
+
+    // Attempt to refine the content using the model (Darija academic long-form, markdown output)
+    let refined = combinedContent;
+    try {
+      if (!GEMINI_API_KEY) {
+        console.warn(
+          "Missing GEMINI_API_KEY; exporting existing text without refinement."
+        );
+      } else {
+        const REFINE_INSTRUCTION = `
+${DARIJA_STYLE_GUIDE}
+
+حول المحتوى التالي إلى تقرير علمي أكاديمي طويل ومُنظّم بلهجة تونسية واضحة ورصينة:
+- استعمل عناوين رئيسية وثانوية (##، ###) مع هيكلة واضحة: مقدمة، خلفية/نظريات، منهجية/خطوات، تحليل/نقاش، أمثلة تطبيقية، حدود العمل، وخلاصة.
+- كثّر التفاصيل والأمثلة والشرح، واستعمل قوائم نقطية أين يلزم.
+- لو فما مفاهيم أساسية، عرّفها بطريقة دقيقة وبسيطة.
+- ما تركّبش حقائق غير صحيحة. كان المعلومة مش مؤكدة، قول "حسب المعارف العامة".
+- خرّج النتيجة بنص Markdown فقط، بلا كود fences وبلا ذكر المنصّة ولا المزوّد.
+- خدم باللغة: الدارجة التونسية، وبأسلوب أكاديمي مهذّب.
+`;
+
+        const contents = [
+          { role: "user", parts: [{ text: REFINE_INSTRUCTION }] },
+          {
+            role: "user",
             parts: [
               {
-                text: `المسودة الأصلية للجواب:\n${String(aiText).slice(
-                  0,
-                  12000
-                )}`,
+                text: `المحتوى المراد تحويله للصيغة الأكاديمية:\n${String(combinedContent).slice(0, 12000)}`,
               },
             ],
           },
@@ -672,13 +802,6 @@ ${DARIJA_STYLE_GUIDE}
       )}</pre>`;
     }
 
-    const safePrompt = userPrompt
-      ? `<blockquote class="prompt">${String(userPrompt).replace(
-          /[&<>]/g,
-          (s) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[s])
-        )}</blockquote>`
-      : "";
-
     const html = `<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
@@ -696,7 +819,6 @@ ${DARIJA_STYLE_GUIDE}
     p { text-align: justify; margin: 0 0 4mm; }
     ul, ol { margin: 0 0 4mm 0; padding-inline-start: 18pt; }
     li { margin: 2mm 0; }
-    blockquote.prompt { border-right: 3px solid #ccc; padding: 4mm 6mm; color: #555; margin: 0 0 10mm; background: #fafafa; }
     footer { position: fixed; bottom: -10mm; left: 0; right: 0; text-align: center; font-size: 10pt; color: #777; }
     .page-number:before { content: counter(page); }
   </style>
@@ -717,7 +839,6 @@ ${DARIJA_STYLE_GUIDE}
   </head>
 <body>
   <header></header>
-  ${safePrompt}
   ${contentHtml}
   <footer>صفحة <span class="page-number"></span></footer>
 </body>
@@ -736,7 +857,7 @@ ${DARIJA_STYLE_GUIDE}
     await browser.close();
 
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", 'attachment; filename="export.pdf"');
+    res.setHeader("Content-Disposition", 'attachment; filename="chat-export.pdf"');
     return res.send(pdfBuffer);
   } catch (e) {
     console.error("PDF generation failed:", e);

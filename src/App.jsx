@@ -16,6 +16,8 @@ function App() {
   const [messages, setMessages] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [editModal, setEditModal] = useState({ open: false, message: null })
+  const [retryCount, setRetryCount] = useState({}) // Track retry counts per message
+  const [downloadingPdf, setDownloadingPdf] = useState(null) // Track which message PDF is being downloaded
   const messagesEndRef = useRef(null)
 
   const scrollToBottom = () => {
@@ -61,6 +63,69 @@ function App() {
     }
   }
 
+  // New handler for the PDF export tool workflow
+  const handleDownloadPdf = async (messageId) => {
+    try {
+      const response = await fetch('http://localhost:3001/export-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages })
+      })
+      
+      if (!response.ok) throw new Error('PDF generation failed')
+      
+      const data = await response.json()
+      
+      // Create a new AI message showing what will be in the PDF with confirmation button
+      const previewMessage = {
+        id: Date.now(),
+        sender: 'ai',
+        text: data.previewContent,
+        timestamp: new Date(),
+        isPdfPreview: true, // Flag to show confirmation button
+        pdfData: messages // Store the data for actual PDF generation
+      }
+      
+      setMessages(prev => [...prev, previewMessage])
+    } catch (error) {
+      console.error('PDF export error:', error)
+      const errorMessage = {
+        id: Date.now(),
+        sender: 'ai',
+        text: 'صارت مشكلة في تجهيز المعاينة للـ PDF. جرّب بعد شوية.',
+        timestamp: new Date()
+      }
+      setMessages(prev => [...prev, errorMessage])
+    }
+  }
+
+  // Handler for confirming PDF download after preview
+  const handleConfirmPdfDownload = async (pdfData, messageId) => {
+    setDownloadingPdf(messageId)
+    try {
+      const pdfResponse = await fetch('http://localhost:3001/download-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: pdfData })
+      })
+      
+      if (!pdfResponse.ok) throw new Error('PDF download failed')
+      
+      const blob = await pdfResponse.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'chat-export.pdf'
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('PDF download error:', error)
+      alert('فشل في تحميل الـ PDF. جرّب مرة ثانية.')
+    } finally {
+      setDownloadingPdf(null)
+    }
+  }
+
   const startChat = (initialMessage = null) => {
     setShowWelcome(false)
     
@@ -69,7 +134,8 @@ function App() {
       id: 1,
       text: "أهلاً بيك في TUNIA! أنا هنا باش نساعدك في الأسئلة الأكاديمية بالدارجة التونسية. اسألني على أي حاجة تحب تعرفها!",
       sender: 'ai',
-      timestamp: new Date()
+      timestamp: new Date(),
+      isWelcomeMessage: true // Flag to identify the welcome message
     }
     
     setMessages([welcomeMessage])
@@ -82,7 +148,7 @@ function App() {
     }
   }
 
-  const handleSendMessage = async ({ text, file, webSearch, fetchUrl, image }) => {
+  const handleSendMessage = async ({ text, file, webSearch, fetchUrl, image, pdfExport }) => {
     if (!text.trim() && !file && !image) return;
 
     const newMessage = {
@@ -114,11 +180,12 @@ function App() {
         historyCount: history.length,
         hasFile: Boolean(file),
         pdfLen: pdfText?.length || 0,
+        pdfExport: Boolean(pdfExport)
       });
       const res = await fetch('http://localhost:3001/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history, pdfText, webSearch, fetchUrl, image })
+        body: JSON.stringify({ message: text, history, pdfText, webSearch, fetchUrl, image, pdfExport })
       });
       const data = await res.json();
       if (!res.ok) {
@@ -130,7 +197,9 @@ function App() {
         id: messages.length + 2,
         text: data.reply || 'صارّت مشكلة مؤقتة في الخدمة، جرّب بعد شوية.',
         sender: 'ai',
-        timestamp: new Date()
+        timestamp: new Date(),
+        isPdfExport: data.isPdfExport || false,
+        pdfContent: data.pdfContent || null
       };
       setMessages(prev => [...prev, aiResponse]);
     } catch (err) {
@@ -181,7 +250,7 @@ async function readPDFFile(file) {
     return <WelcomeScreen onStartChat={startChat} />
   }
 
-  // Retry handler: resend the previous user message that led to this AI message
+  // Retry handler: remove the AI message, resend the previous user message, and track retry count
   const handleRetry = async (aiMessage) => {
     const idx = messages.findIndex(m => m.id === aiMessage.id)
     let prevUser = null
@@ -189,7 +258,69 @@ async function readPDFFile(file) {
       if (messages[i]?.sender === 'user') { prevUser = messages[i]; break }
     }
     if (prevUser) {
-      await handleSendMessage({ text: prevUser.text })
+      // Remove the AI message being retried
+      setMessages(prev => prev.filter(m => m.id !== aiMessage.id))
+      
+      // Update retry count
+      const currentRetries = retryCount[prevUser.id] || 0
+      setRetryCount(prev => ({ ...prev, [prevUser.id]: currentRetries + 1 }))
+      
+      // Resend the user message WITHOUT adding it to the messages array
+      setIsLoading(true)
+      
+      try {
+        let pdfText = '';
+        if (prevUser.file) {
+          pdfText = await readPDFFile(prevUser.file);
+        }
+        
+        // Prepare history excluding the current user message to avoid duplication
+        const history = [...messages].slice(-30).filter(m => m.id !== prevUser.id).map(msg => ({
+          sender: msg.sender,
+          text: msg.text
+        }));
+        
+        const res = await fetch('http://localhost:3001/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            message: prevUser.text, 
+            history, 
+            pdfText,
+            webSearch: prevUser.webSearch,
+            fetchUrl: prevUser.fetchUrl,
+            image: prevUser.image,
+            pdfExport: aiMessage.isPdfExport || false
+          })
+        });
+        
+        const data = await res.json();
+        if (!res.ok) {
+          console.error('Server error response:', data);
+          throw new Error('SERVICE_ERROR');
+        }
+        
+        const aiResponse = {
+          id: Date.now(), // Use timestamp for unique ID
+          text: data.reply || 'صارّت مشكلة مؤقتة في الخدمة، جرّب بعد شوية.',
+          sender: 'ai',
+          timestamp: new Date(),
+          isPdfExport: data.isPdfExport || false,
+          pdfContent: data.pdfContent || null
+        };
+        
+        setMessages(prev => [...prev.filter(m => m.id !== aiMessage.id), aiResponse]);
+      } catch (err) {
+        console.error('Retry error:', err);
+        const friendly = 'صارت مشكلة تقنية مؤقتة في الخدمة. جرّب بعد شوية ولا تأكّد إلي الخادم شغّال.';
+        setMessages(prev => [...prev.filter(m => m.id !== aiMessage.id), {
+          id: Date.now(),
+          text: friendly,
+          sender: 'ai',
+          timestamp: new Date()
+        }]);
+      }
+      setIsLoading(false)
     }
   }
 
@@ -237,8 +368,12 @@ async function readPDFFile(file) {
                   key={message.id}
                   message={message}
                   onExport={handleExportPdf}
+                  onDownloadPdf={handleDownloadPdf}
+                  onConfirmPdfDownload={handleConfirmPdfDownload}
                   onRetry={handleRetry}
                   onEdit={handleEdit}
+                  retryCount={message.sender === 'user' ? retryCount[message.id] || 0 : 0}
+                  downloadingPdf={downloadingPdf}
                 />
               ))}
             </AnimatePresence>

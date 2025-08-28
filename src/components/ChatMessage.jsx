@@ -1,9 +1,9 @@
 import React from 'react'
 import ReactMarkdown from 'react-markdown'
 import { motion } from 'framer-motion'
-import { Bot, User, FileText, RotateCcw, Pencil } from 'lucide-react'
+import { Bot, User, FileText, RotateCcw, Pencil, Copy, Download, Loader2 } from 'lucide-react'
 
-const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit }) => {
+const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, onDownloadPdf, onConfirmPdfDownload, retryCount, downloadingPdf }) => {
   const isUser = message?.sender === 'user'
   
   const formatTime = (date) => {
@@ -11,6 +11,22 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit }) 
       hour: '2-digit', 
       minute: '2-digit' 
     })
+  }
+
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      // You could add a toast notification here if desired
+    } catch (err) {
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea')
+      textArea.value = text
+      document.body.appendChild(textArea)
+      textArea.focus()
+      textArea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textArea)
+    }
   }
 
   if (isLoading) {
@@ -82,9 +98,25 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit }) 
         <ReactMarkdown
           components={{
             code({node, inline, className, children, ...props}) {
-              return inline
-                ? <code className={className} {...props}>{children}</code>
-                : <pre className="bg-light p-2 rounded" style={{ fontSize: '0.92rem', overflowX: 'auto' }}><code className={className} {...props}>{children}</code></pre>;
+              const codeString = String(children).replace(/\n$/, '')
+              if (inline) {
+                return <code className={className} {...props}>{children}</code>
+              }
+              return (
+                <div className="position-relative">
+                  <pre className="bg-light p-2 rounded text-start" style={{ fontSize: '0.92rem', overflowX: 'auto', direction: 'ltr' }}>
+                    <code className={className} {...props}>{children}</code>
+                  </pre>
+                  <button 
+                    onClick={() => copyToClipboard(codeString)}
+                    className="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-1"
+                    style={{ fontSize: '0.7rem' }}
+                    title="نسخ الكود"
+                  >
+                    <Copy size={12} />
+                  </button>
+                </div>
+              );
             },
             ul({children, ...props}) {
               return <ul className="ms-3" {...props}>{children}</ul>;
@@ -115,6 +147,15 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit }) 
         </small>
         <button
           type="button"
+          className="btn btn-link btn-sm p-0 ms-1"
+          onClick={() => copyToClipboard(message.text)}
+          title="نسخ"
+          style={{ verticalAlign: 'middle' }}
+        >
+          <Copy size={14} />
+        </button>
+        <button
+          type="button"
           className="btn btn-link btn-sm p-0 ms-2"
           onClick={() => onEdit && onEdit(message)}
           title="تعديل"
@@ -142,9 +183,25 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit }) 
         <ReactMarkdown
           components={{
             code({node, inline, className, children, ...props}) {
-              return inline
-                ? <code className={className} {...props}>{children}</code>
-                : <pre className="bg-light p-2 rounded" style={{ fontSize: '0.92rem', overflowX: 'auto' }}><code className={className} {...props}>{children}</code></pre>;
+              const codeString = String(children).replace(/\n$/, '')
+              if (inline) {
+                return <code className={className} {...props}>{children}</code>
+              }
+              return (
+                <div className="position-relative">
+                  <pre className="bg-light p-2 rounded text-start" style={{ fontSize: '0.92rem', overflowX: 'auto', direction: 'ltr' }}>
+                    <code className={className} {...props}>{children}</code>
+                  </pre>
+                  <button 
+                    onClick={() => copyToClipboard(codeString)}
+                    className="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-1"
+                    style={{ fontSize: '0.7rem' }}
+                    title="نسخ الكود"
+                  >
+                    <Copy size={12} />
+                  </button>
+                </div>
+              );
             },
             ul({children, ...props}) {
               return <ul className="ms-3" {...props}>{children}</ul>;
@@ -169,27 +226,68 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit }) 
           {message.text}
         </ReactMarkdown>
       </div>
+      {message.isPdfPreview && (
+        <div className="mt-3 mb-2">
+          <button
+            type="button"
+            className="btn btn-success d-flex align-items-center gap-2"
+            onClick={() => onConfirmPdfDownload && onConfirmPdfDownload(message.pdfData, message.id)}
+            disabled={downloadingPdf === message.id}
+          >
+            {downloadingPdf === message.id ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                <span>جاري تحميل الـ PDF...</span>
+              </>
+            ) : (
+              <>
+                <Download size={16} />
+                <span>تأكيد تحميل الـ PDF</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
       <div className={`text-muted text-start d-flex align-items-center gap-2`}>
         <small style={{ fontSize: '0.75rem', opacity: 0.7 }}>
           {formatTime(message.timestamp)}
         </small>
+        {retryCount > 0 && (
+          <small style={{ fontSize: '0.75rem', opacity: 0.7 }}>
+            • {retryCount} إعادة محاولة
+          </small>
+        )}
         <button
           type="button"
-          className="btn btn-link btn-sm p-0"
-          onClick={() => onExport && onExport(message)}
-          title="تصدير كـ PDF"
-        >
-          تصدير كـ PDF
-        </button>
-        <button
-          type="button"
-          className="btn btn-link btn-sm p-0 ms-2"
-          onClick={() => onRetry && onRetry(message)}
-          title="أعد المحاولة"
+          className="btn btn-link btn-sm p-0 ms-1"
+          onClick={() => copyToClipboard(message.text)}
+          title="نسخ"
           style={{ verticalAlign: 'middle' }}
         >
-          <RotateCcw size={16} />
+          <Copy size={14} />
         </button>
+        {!message.isWelcomeMessage && (
+          <button
+            type="button"
+            className="btn btn-link btn-sm p-0 ms-2"
+            onClick={() => onDownloadPdf && onDownloadPdf(message.id)}
+            title="تحميل كـ PDF"
+            style={{ verticalAlign: 'middle' }}
+          >
+            <Download size={14} />
+          </button>
+        )}
+        {!message.isWelcomeMessage && (
+          <button
+            type="button"
+            className="btn btn-link btn-sm p-0 ms-2"
+            onClick={() => onRetry && onRetry(message)}
+            title="أعد المحاولة"
+            style={{ verticalAlign: 'middle' }}
+          >
+            <RotateCcw size={16} />
+          </button>
+        )}
       </div>
     </div>
   )}
