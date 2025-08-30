@@ -829,7 +829,8 @@ ${DARIJA_STYLE_GUIDE}
       .map((m) => String(m.text));
     let searchQuery = userMsgs.length
       ? userMsgs[userMsgs.length - 1]
-      : (refined.split(/\n/).find((l) => /^#{1,2}\s/.test(l)) || refined.slice(0, 200));
+      : refined.split(/\n/).find((l) => /^#{1,2}\s/.test(l)) ||
+        refined.slice(0, 200);
     searchQuery = String(searchQuery)
       .replace(/```[\s\S]*?```/g, " ")
       .replace(/[#*_`>]+/g, " ")
@@ -844,18 +845,26 @@ ${DARIJA_STYLE_GUIDE}
         const q = encodeURIComponent(searchQuery);
         const ddgUrl = `https://api.duckduckgo.com/?q=${q}&format=json&no_redirect=1&no_html=1&skip_disambig=1`;
         try {
-          const ddgResp = await fetch(ddgUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+          const ddgResp = await fetch(ddgUrl, {
+            headers: { "User-Agent": "Mozilla/5.0" },
+          });
           const ddgJson = await ddgResp.json();
           const firstURL =
             ddgJson?.AbstractURL ||
             (Array.isArray(ddgJson?.Results) && ddgJson.Results[0]?.FirstURL) ||
             "";
-          if (firstURL) webResults.push({ title: ddgJson?.Heading || "Result", url: firstURL });
+          if (firstURL)
+            webResults.push({
+              title: ddgJson?.Heading || "Result",
+              url: firstURL,
+            });
           if (Array.isArray(ddgJson?.RelatedTopics)) {
             for (const t of ddgJson.RelatedTopics) {
-              const title = t?.Text || (Array.isArray(t?.Topics) ? t.Topics[0]?.Text : "");
+              const title =
+                t?.Text || (Array.isArray(t?.Topics) ? t.Topics[0]?.Text : "");
               const url =
-                t?.FirstURL || (Array.isArray(t?.Topics) ? t.Topics[0]?.FirstURL : "");
+                t?.FirstURL ||
+                (Array.isArray(t?.Topics) ? t.Topics[0]?.FirstURL : "");
               if (title && url) webResults.push({ title, url });
               if (webResults.length >= 3) break;
             }
@@ -865,7 +874,9 @@ ${DARIJA_STYLE_GUIDE}
         if (webResults.length < 3) {
           try {
             const ddgHtmlUrl = `https://html.duckduckgo.com/html/?q=${q}`;
-            const htmlResp = await fetch(ddgHtmlUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+            const htmlResp = await fetch(ddgHtmlUrl, {
+              headers: { "User-Agent": "Mozilla/5.0" },
+            });
             const html = await htmlResp.text();
             const $ = cheerioLoad(html);
             $("a.result__a").each((_, el) => {
@@ -875,7 +886,9 @@ ${DARIJA_STYLE_GUIDE}
               if (url && url.includes("//duckduckgo.com/l/?uddg=")) {
                 try {
                   const urlParams = new URL(url, "https://duckduckgo.com");
-                  const actualUrl = decodeURIComponent(urlParams.searchParams.get("uddg") || "");
+                  const actualUrl = decodeURIComponent(
+                    urlParams.searchParams.get("uddg") || ""
+                  );
                   if (actualUrl) url = actualUrl;
                 } catch (_) {}
               }
@@ -891,11 +904,15 @@ ${DARIJA_STYLE_GUIDE}
     const webUrls = webResults
       .map((r) => r && r.url)
       .filter(Boolean)
-      .filter((u) =>
-        /^https?:\/\//i.test(u) && !/^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)/i.test(u)
+      .filter(
+        (u) =>
+          /^https?:\/\//i.test(u) &&
+          !/^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)/i.test(u)
       );
 
-    const allUrls = Array.from(new Set([...urlsFromText, ...urlsFromMsgs, ...webUrls]))
+    const allUrls = Array.from(
+      new Set([...urlsFromText, ...urlsFromMsgs, ...webUrls])
+    )
       .filter((u) => /^https?:\/\//i.test(u))
       .slice(0, 6);
 
@@ -909,7 +926,11 @@ ${DARIJA_STYLE_GUIDE}
       try {
         const d = new Date(iso);
         if (isNaN(d.getTime())) return null;
-        return d.toLocaleDateString("en-GB", { year: "numeric", month: "long", day: "2-digit" });
+        return d.toLocaleDateString("en-GB", {
+          year: "numeric",
+          month: "long",
+          day: "2-digit",
+        });
       } catch (_) {
         return null;
       }
@@ -918,7 +939,9 @@ ${DARIJA_STYLE_GUIDE}
     const fetchMetaForUrl = async (u) => {
       const info = { url: u, title: "", site: "", published: null };
       try {
-        const resp = await fetch(u, { headers: { "User-Agent": "Mozilla/5.0" } });
+        const resp = await fetch(u, {
+          headers: { "User-Agent": "Mozilla/5.0" },
+        });
         const ct = (resp.headers.get("content-type") || "").toLowerCase();
         if (!ct.includes("text/html")) return info;
         const html = await resp.text();
@@ -927,7 +950,8 @@ ${DARIJA_STYLE_GUIDE}
         info.title =
           getMeta('meta[property="og:title"]') ||
           getMeta('meta[name="twitter:title"]') ||
-          $("title").first().text().trim() || "";
+          $("title").first().text().trim() ||
+          "";
         info.site =
           getMeta('meta[property="og:site_name"]') ||
           getMeta('meta[name="application-name"]') ||
@@ -948,7 +972,7 @@ ${DARIJA_STYLE_GUIDE}
               const txt = $(el).text();
               const j = JSON.parse(txt);
               const date = Array.isArray(j)
-                ? (j.find((x) => x && x.datePublished)?.datePublished || null)
+                ? j.find((x) => x && x.datePublished)?.datePublished || null
                 : j?.datePublished || null;
               const fmt = date && formatDate(date);
               if (fmt) {
@@ -1009,8 +1033,7 @@ ${DARIJA_STYLE_GUIDE}
     p { text-align: justify; margin: 0 0 4mm; }
     ul, ol { margin: 0 0 4mm 0; padding-inline-start: 18pt; }
     li { margin: 2mm 0; }
-    footer { position: fixed; bottom: -10mm; left: 0; right: 0; text-align: center; font-size: 10pt; color: #777; }
-    .page-number:before { content: counter(page); }
+  /* Footer is rendered by Puppeteer header/footer templates; no CSS counters here */
   </style>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;700;800&display=swap" rel="stylesheet">
   <title>Academic Export</title>
@@ -1023,15 +1046,13 @@ ${DARIJA_STYLE_GUIDE}
     }
     document.addEventListener('DOMContentLoaded', tryPromoteTitle);
   </script>
-  <style>
-    @page { @bottom-center { content: counter(page); } }
-  </style>
+  
   </head>
 <body>
   <header></header>
   ${contentHtml}
   ${referencesHtml}
-  <footer>صفحة <span class="page-number"></span></footer>
+  
 </body>
 </html>`;
 
@@ -1044,6 +1065,14 @@ ${DARIJA_STYLE_GUIDE}
       format: "A4",
       printBackground: true,
       margin: { top: "20mm", bottom: "20mm", left: "15mm", right: "15mm" },
+      displayHeaderFooter: true,
+      headerTemplate: `<div></div>`,
+      footerTemplate: `
+        <div style="width:100%; font-size:10px; color:#777; padding:0 15mm;">
+          <div style="text-align:center; width:100%;">
+            صفحة <span class="pageNumber"></span> / <span class="totalPages"></span>
+          </div>
+        </div>`,
     });
     await browser.close();
 
