@@ -616,14 +616,7 @@ app.post("/export-pdf", async (req, res) => {
 ${DARIJA_STYLE_GUIDE}
 
 حول المحتوى التالي إلى تقرير علمي أكاديمي طويل ومُنظّم بلهجة تونسية واضحة ورصينة:
-- استعمل عناوين رئيسية وثانوية (##، ###) مع هيكلة واضحة: مقدمة، خلفية/نظريات، منهجية/خطوات، تحليل/نقاش، أمثلة تطبيقية، حدود العمل، وخلاصة.
-- كثّر التفاصيل والأمثلة والشرح، واستعمل قوائم نقطية أين يلزم.
-- لو فما مفاهيم أساسية، عرّفها بطريقة دقيقة وبسيطة.
-- ما تركّبش حقائق غير صحيحة. كان المعلومة مش مؤكدة، قول "حسب المعارف العامة".
-- خرّج النتيجة بنص Markdown فقط، بلا كود fences وبلا ذكر المنصّة ولا المزوّد.
-- خدم باللغة: الدارجة التونسية، وبأسلوب أكاديمي مهذّب.
 `;
-
         const contents = [
           { role: "user", parts: [{ text: REFINE_INSTRUCTION }] },
           {
@@ -746,7 +739,6 @@ ${DARIJA_STYLE_GUIDE}
 - خرّج النتيجة بنص Markdown فقط، بلا كود fences وبلا ذكر المنصّة ولا المزوّد.
 - خدم باللغة: الدارجة التونسية، وبأسلوب أكاديمي مهذّب.
 `;
-
         const contents = [
           { role: "user", parts: [{ text: REFINE_INSTRUCTION }] },
           {
@@ -764,7 +756,6 @@ ${DARIJA_STYLE_GUIDE}
             parts: [{ text: "رجّع النص الأكاديمي المفصل بنسق Markdown فقط." }],
           },
         ];
-
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
         const response = await fetch(url, {
           method: "POST",
@@ -777,6 +768,7 @@ ${DARIJA_STYLE_GUIDE}
             },
           }),
         });
+
         const textBody = await response.text();
         if (!response.ok) {
           console.error(
@@ -811,9 +803,9 @@ ${DARIJA_STYLE_GUIDE}
       );
     }
 
-    const md = new MarkdownIt({ html: true, linkify: true, breaks: false });
     // Enforce Tunisian lexicon before rendering
     refined = enforceTunisianLexicon(refined);
+    const md = new MarkdownIt({ html: true, linkify: true, breaks: false });
     let contentHtml = "";
     try {
       contentHtml = md.render(refined);
@@ -822,6 +814,182 @@ ${DARIJA_STYLE_GUIDE}
         /[&<>]/g,
         (s) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[s])
       )}</pre>`;
+    }
+
+    // --- Force web search + URL fetch to gather sources, then extract citations ---
+    const urlRegexGlobal = /https?:\/\/[^\s)]+/gi;
+    const urlsFromText = refined.match(urlRegexGlobal) || [];
+    const urlsFromMsgs = aiMessages
+      .flatMap((m) => String(m.text || "").match(urlRegexGlobal) || [])
+      .filter(Boolean);
+
+    // Build a search query from the latest user message or fallback to refined heading
+    const userMsgs = (Array.isArray(messages) ? messages : [])
+      .filter((m) => m && m.sender === "user" && m.text)
+      .map((m) => String(m.text));
+    let searchQuery = userMsgs.length
+      ? userMsgs[userMsgs.length - 1]
+      : (refined.split(/\n/).find((l) => /^#{1,2}\s/.test(l)) || refined.slice(0, 200));
+    searchQuery = String(searchQuery)
+      .replace(/```[\s\S]*?```/g, " ")
+      .replace(/[#*_`>]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 200);
+
+    // Perform DuckDuckGo search (JSON first, then HTML fallback) to get external URLs
+    let webResults = [];
+    try {
+      if (searchQuery) {
+        const q = encodeURIComponent(searchQuery);
+        const ddgUrl = `https://api.duckduckgo.com/?q=${q}&format=json&no_redirect=1&no_html=1&skip_disambig=1`;
+        try {
+          const ddgResp = await fetch(ddgUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+          const ddgJson = await ddgResp.json();
+          const firstURL =
+            ddgJson?.AbstractURL ||
+            (Array.isArray(ddgJson?.Results) && ddgJson.Results[0]?.FirstURL) ||
+            "";
+          if (firstURL) webResults.push({ title: ddgJson?.Heading || "Result", url: firstURL });
+          if (Array.isArray(ddgJson?.RelatedTopics)) {
+            for (const t of ddgJson.RelatedTopics) {
+              const title = t?.Text || (Array.isArray(t?.Topics) ? t.Topics[0]?.Text : "");
+              const url =
+                t?.FirstURL || (Array.isArray(t?.Topics) ? t.Topics[0]?.FirstURL : "");
+              if (title && url) webResults.push({ title, url });
+              if (webResults.length >= 3) break;
+            }
+          }
+        } catch (_) {}
+        // HTML fallback if needed
+        if (webResults.length < 3) {
+          try {
+            const ddgHtmlUrl = `https://html.duckduckgo.com/html/?q=${q}`;
+            const htmlResp = await fetch(ddgHtmlUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+            const html = await htmlResp.text();
+            const $ = cheerioLoad(html);
+            $("a.result__a").each((_, el) => {
+              if (webResults.length >= 3) return false;
+              const title = $(el).text().trim();
+              let url = $(el).attr("href");
+              if (url && url.includes("//duckduckgo.com/l/?uddg=")) {
+                try {
+                  const urlParams = new URL(url, "https://duckduckgo.com");
+                  const actualUrl = decodeURIComponent(urlParams.searchParams.get("uddg") || "");
+                  if (actualUrl) url = actualUrl;
+                } catch (_) {}
+              }
+              if (title && url) webResults.push({ title, url });
+            });
+          } catch (_) {}
+        }
+      }
+    } catch (_) {
+      // Ignore web search errors; we'll continue with any URLs found in text
+    }
+
+    const webUrls = webResults
+      .map((r) => r && r.url)
+      .filter(Boolean)
+      .filter((u) =>
+        /^https?:\/\//i.test(u) && !/^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)/i.test(u)
+      );
+
+    const allUrls = Array.from(new Set([...urlsFromText, ...urlsFromMsgs, ...webUrls]))
+      .filter((u) => /^https?:\/\//i.test(u))
+      .slice(0, 6);
+
+    const accessedStr = new Date().toLocaleDateString("en-GB", {
+      year: "numeric",
+      month: "long",
+      day: "2-digit",
+    });
+
+    const formatDate = (iso) => {
+      try {
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return null;
+        return d.toLocaleDateString("en-GB", { year: "numeric", month: "long", day: "2-digit" });
+      } catch (_) {
+        return null;
+      }
+    };
+
+    const fetchMetaForUrl = async (u) => {
+      const info = { url: u, title: "", site: "", published: null };
+      try {
+        const resp = await fetch(u, { headers: { "User-Agent": "Mozilla/5.0" } });
+        const ct = (resp.headers.get("content-type") || "").toLowerCase();
+        if (!ct.includes("text/html")) return info;
+        const html = await resp.text();
+        const $ = cheerioLoad(html);
+        const getMeta = (sel, attr = "content") => $(sel).attr(attr) || "";
+        info.title =
+          getMeta('meta[property="og:title"]') ||
+          getMeta('meta[name="twitter:title"]') ||
+          $("title").first().text().trim() || "";
+        info.site =
+          getMeta('meta[property="og:site_name"]') ||
+          getMeta('meta[name="application-name"]') ||
+          new URL(u).hostname.replace(/^www\./, "");
+        const pub =
+          getMeta('meta[property="article:published_time"]') ||
+          getMeta('meta[name="article:published_time"]') ||
+          getMeta('meta[name="datePublished"]') ||
+          getMeta('meta[itemprop="datePublished"]') ||
+          $("time[datetime]").attr("datetime") ||
+          "";
+        const formatted = formatDate(pub);
+        if (formatted) info.published = formatted;
+        // Try JSON-LD datePublished
+        if (!info.published) {
+          $('script[type="application/ld+json"]').each((_, el) => {
+            try {
+              const txt = $(el).text();
+              const j = JSON.parse(txt);
+              const date = Array.isArray(j)
+                ? (j.find((x) => x && x.datePublished)?.datePublished || null)
+                : j?.datePublished || null;
+              const fmt = date && formatDate(date);
+              if (fmt) {
+                info.published = fmt;
+                return false;
+              }
+            } catch (_) {}
+          });
+        }
+      } catch (_) {
+        // network or parse error: keep defaults
+      }
+      return info;
+    };
+
+    const metaList = [];
+    for (const u of allUrls) {
+      // Sequential to avoid too many concurrent requests; still fast with slice(0,6)
+      // eslint-disable-next-line no-await-in-loop
+      const meta = await fetchMetaForUrl(u);
+      metaList.push(meta);
+    }
+
+    let referencesHtml = "";
+    if (metaList.length > 0) {
+      const lis = metaList
+        .map((m, i) => {
+          const n = i + 1;
+          const site = m.site || new URL(m.url).hostname.replace(/^www\./, "");
+          const title = m.title || site;
+          const pub = m.published ? `Published: ${m.published}. ` : "";
+          return (
+            `<li style='margin:4pt 0; list-style:none; direction:ltr; text-align:left; word-break:break-word;'>` +
+            `[${n}] ${site}. ${title}. ${pub}Accessed: ${accessedStr}. URL: ${m.url}` +
+            `</li>`
+          );
+        })
+        .join("");
+      referencesHtml = `<h2 style='margin-top:18mm'>المراجع</h2><ul style='padding-left:0; font-size:12.5pt;'>${lis}</ul>`;
+    } else {
+      referencesHtml = `<h2 style='margin-top:18mm'>المراجع</h2><p style='font-size:12pt;color:#888'>لا توجد مراجع مستعملة في هذا التقرير.</p>`;
     }
 
     const html = `<!doctype html>
@@ -862,6 +1030,7 @@ ${DARIJA_STYLE_GUIDE}
 <body>
   <header></header>
   ${contentHtml}
+  ${referencesHtml}
   <footer>صفحة <span class="page-number"></span></footer>
 </body>
 </html>`;
