@@ -122,6 +122,23 @@ function enforceTunisianLexicon(input) {
   apply(["سيارة"], "كرهبة");
   apply(["بدون أن"], "منغير ما");
 
+  // Idiom fix: replace the incorrect comparative pattern
+  // "برشا ما X، برشا ما Y" -> "كل ما X، كل ما Y"
+  // Keep it contextual to avoid changing valid uses of "برشا" elsewhere
+  text = text.replace(
+    /(\b|^|[\s.!؟\?،,:;\-\(\[])برشا\s*ما\s*([^،\n\r]+?)\s*(،|,)\s*برشا\s*ما\s*([^\.\!\?\n\r]+?)(?=($|[\.\!\?،,:;\)\]\n\r]))/g,
+    (m, pre, part1, sep, part2, endDelim) => {
+      const lhs = part1.trim();
+      const rhs = part2.trim();
+      return `${pre}كل ما ${lhs}، كل ما ${rhs}`;
+    }
+  );
+  // Within this idiom only, prefer "نجم نجاوبك" over "نقدر نجيبك" for clarity
+  text = text.replace(
+    /(كل\s*ما\s*[^،\n\r]+،\s*كل\s*ما\s*)(اٍنجم\s+نجاوبك)(\s+بشكل\s+أفضل)/gi,
+    (m, prefix, _v, suffix) => `${prefix}نجم نجاوبك${suffix}`
+  );
+
   return text;
 }
 
