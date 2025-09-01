@@ -121,6 +121,7 @@ function enforceTunisianLexicon(input) {
   apply(["الملل"], "القلق");
   apply(["سيارة"], "كرهبة");
   apply(["بدون أن"], "منغير ما");
+  apply(["واش"], "شنوة");
 
   // Idiom fix: replace the incorrect comparative pattern
   // "برشا ما X، برشا ما Y" -> "كل ما X، كل ما Y"
@@ -351,9 +352,9 @@ ${contextSnippets.map((t,i)=>`[${i+1}] ${t}`).join('\n\n')}
       if (finalQuiz.length < 3) {
         // Fallback simple quiz if model failed
         const baseQ = (i) => ({
-          question: enforceTunisianLexicon(`سؤال ${i + 1}: شنوّة الصحيح بخصوص "${subject}"؟`),
+          question: enforceTunisianLexicon(`سؤال ${i + 1}: شنوة رايك في "${subject}"؟`),
           options: [
-            enforceTunisianLexicon(`${subject} موضوع للسؤال هذا`),
+            enforceTunisianLexicon(`موضوع مهم ومفيد`),
             enforceTunisianLexicon("الإجابة هاذي مغلوطة"),
             enforceTunisianLexicon("ما عندهاش علاقة مباشرة"),
             enforceTunisianLexicon("اختيار تجريبي")
