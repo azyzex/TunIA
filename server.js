@@ -161,7 +161,7 @@ const DARIJA_STYLE_GUIDE = `
 `;
 
 app.post("/api/chat", async (req, res) => {
-  const { message, history, pdfText, webSearch, image, pdfExport } =
+  const { message, history, pdfText, webSearch, image, pdfExport, quizMode, quizQuestions, quizOptions } =
     req.body || {};
   const { fetchUrl } = req.body || {};
   // Language request detection (explicit instructions override Darija)
@@ -209,7 +209,8 @@ app.post("/api/chat", async (req, res) => {
         fetchUrl: Boolean(fetchUrl),
         pdfLen: pdfText ? String(pdfText).length : 0,
         hasImage: Boolean(image && image.data && image.mimeType),
-        time: new Date().toISOString(),
+  time: new Date().toISOString(),
+  quizMode: Boolean(quizMode),
       },
       null,
       0
@@ -223,6 +224,146 @@ app.post("/api/chat", async (req, res) => {
   }
 
   try {
+    // Quiz generation mode: return a structured quiz instead of a normal reply
+    if (quizMode && typeof message === "string" && message.trim().length) {
+      const subject = message.trim().slice(0, 400);
+      const qCount = Math.max(5, Math.min(30, parseInt(quizQuestions || 5, 10)));
+      const aCount = Math.max(2, Math.min(6, parseInt(quizOptions || 4, 10)));
+      // Try to gather web context (force like PDF)
+      let contextSnippets = [];
+      try {
+        const q = encodeURIComponent(subject.slice(0, 200));
+        const ddgUrl = `https://api.duckduckgo.com/?q=${q}&format=json&no_redirect=1&no_html=1&skip_disambig=1`;
+        const ddgResp = await fetch(ddgUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+        const ddgJson = await ddgResp.json();
+        const firstURL = ddgJson?.AbstractURL || (Array.isArray(ddgJson?.Results) && ddgJson.Results[0]?.FirstURL) || "";
+        const urls = [];
+        if (firstURL) urls.push(firstURL);
+        if (Array.isArray(ddgJson?.RelatedTopics)) {
+          for (const t of ddgJson.RelatedTopics) {
+            const url = t?.FirstURL || (Array.isArray(t?.Topics) ? t.Topics[0]?.FirstURL : "");
+            if (url) urls.push(url);
+            if (urls.length >= 3) break;
+          }
+        }
+        // Fallback to HTML results if needed
+        if (urls.length < 3) {
+          const ddgHtmlUrl = `https://html.duckduckgo.com/html/?q=${q}`;
+          const htmlResp = await fetch(ddgHtmlUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+          const html = await htmlResp.text();
+          const $ = cheerioLoad(html);
+          $("a.result__a").each((_, el) => {
+            if (urls.length >= 3) return false;
+            let url = $(el).attr("href");
+            if (url && url.includes("//duckduckgo.com/l/?uddg=")) {
+              try {
+                const urlParams = new URL(url, "https://duckduckgo.com");
+                const actualUrl = decodeURIComponent(urlParams.searchParams.get("uddg") || "");
+                if (actualUrl) url = actualUrl;
+              } catch (_) {
+                // ignore URL decode errors
+              }
+            }
+            if (url) urls.push(url);
+          });
+        }
+        // Fetch text from top URLs
+        for (const u of urls.slice(0, 2)) {
+          try {
+            const resp = await fetch(u, { headers: { "User-Agent": "Mozilla/5.0" } });
+            const ct = (resp.headers.get("content-type") || "").toLowerCase();
+            const raw = await resp.text();
+            let text = raw;
+            if (ct.includes("text/html")) {
+              const $ = cheerioLoad(raw);
+              $("script, style, noscript").remove();
+              text = $("body").text().replace(/\s+/g, " ").trim();
+            }
+            if (text) contextSnippets.push(text.slice(0, 7000));
+          } catch (_) {
+            // ignore per-URL fetch errors in quiz context
+          }
+        }
+      } catch (_) {
+        // ignore web context aggregation errors for quiz
+      }
+      const QUIZ_INSTR = `
+${DARIJA_STYLE_GUIDE}
+
+بدون أي شرح إضافي، رجّع JSON نقي فقط (Array) فيه ${qCount} أسئلة حول الموضوع التالي، كل عنصر عندو:
+- question: نص السؤال (بالدارجة التونسية، واضح وقصير)
+- options: Array من ${aCount} خيارات نصية، مختلفة وواضحة
+- correctIndex: رقم صحيح من 0 إلى ${aCount - 1} يدل على الإجابة الصحيحة
+
+مثال للعنصر:
+{ "question": "شنوّة ...؟", "options": ["...","...","...","..."], "correctIndex": 1 }
+
+الموضوع: ${subject}
+${contextSnippets.length ? `
+مراجع من الويب (مقتطفات غير مباشرة باش تعاونك في تكوين الأسئلة):
+${contextSnippets.map((t,i)=>`[${i+1}] ${t}`).join('\n\n')}
+` : ''}
+
+رجّع الـ JSON فقط.`;
+      let quiz = [];
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [ { role: "user", parts: [{ text: QUIZ_INSTR }] } ], generationConfig: { temperature: 0.6, maxOutputTokens: 1024 } }),
+        });
+        const textBody = await response.text();
+        if (response.ok) {
+          let data;
+          try { data = JSON.parse(textBody); } catch { data = { raw: textBody }; }
+          let raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          // Strip code fences if present
+          raw = raw.replace(/```json\s*|```/g, "").trim();
+          // Try to parse JSON array
+          try { quiz = JSON.parse(raw); } catch (_) {
+            // Try to extract JSON array via regex
+            const m = raw.match(/\[[\s\S]*\]/);
+            if (m) {
+              try { quiz = JSON.parse(m[0]); } catch { quiz = []; }
+            }
+          }
+        } else {
+          console.warn("Quiz API error:", response.status, textBody);
+        }
+      } catch (e) {
+        console.warn("Quiz generation error:", e.message);
+      }
+      const sanitizeQuiz = (arr) => {
+        if (!Array.isArray(arr)) return [];
+        return arr
+          .filter((q) => q && typeof q.question === "string" && Array.isArray(q.options))
+          .map((q) => {
+            let opts = q.options.slice(0, 4).map((o) => String(o).trim()).filter(Boolean);
+            while (opts.length < 4) opts.push("خيار إضافي");
+            let idx = Number.isInteger(q.correctIndex) ? q.correctIndex : 0;
+            if (idx < 0 || idx > 3) idx = 0;
+            return { question: enforceTunisianLexicon(q.question).slice(0, 200), options: opts.map(enforceTunisianLexicon), correctIndex: idx };
+          })
+          .slice(0, 5);
+      };
+      let finalQuiz = sanitizeQuiz(quiz);
+      if (finalQuiz.length < 3) {
+        // Fallback simple quiz if model failed
+        const baseQ = (i) => ({
+          question: enforceTunisianLexicon(`سؤال ${i + 1}: شنوّة الصحيح بخصوص "${subject}"؟`),
+          options: [
+            enforceTunisianLexicon(`${subject} موضوع للسؤال هذا`),
+            enforceTunisianLexicon("الإجابة هاذي مغلوطة"),
+            enforceTunisianLexicon("ما عندهاش علاقة مباشرة"),
+            enforceTunisianLexicon("اختيار تجريبي")
+          ],
+          correctIndex: 0,
+        });
+        finalQuiz = [0,1,2,3,4].map(baseQ);
+      }
+      return res.json({ isQuiz: true, quiz: finalQuiz });
+    }
     // Optional DuckDuckGo search if requested
     let webSearchSnippet = "";
     let webResults = [];

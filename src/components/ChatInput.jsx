@@ -1,13 +1,14 @@
 import React, { useState, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { Send, Upload, FileText, X, Plus, Search, Image as ImageIcon } from 'lucide-react'
+import { Send, Upload, FileText, X, Plus, Search, Image as ImageIcon, ListChecks } from 'lucide-react'
 
-const ChatInput = ({ onSendMessage, disabled = false }) => {
+const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizMode = () => {} }) => {
   const [inputText, setInputText] = useState('')
   const [selectedFile, setSelectedFile] = useState(null)
   const [toolMenuOpen, setToolMenuOpen] = useState(false)
   const [combinedToolEnabled, setCombinedToolEnabled] = useState(false)
   const [selectedImage, setSelectedImage] = useState(null) // { file, previewUrl, mimeType, base64 }
+  // quizMode is lifted to App via props
   const fileInputRef = useRef(null)
   const imageInputRef = useRef(null)
 
@@ -19,7 +20,8 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
       file: selectedFile,
   image: selectedImage ? { data: selectedImage.base64, mimeType: selectedImage.mimeType, previewUrl: selectedImage.previewUrl } : null,
       webSearch: combinedToolEnabled,
-      fetchUrl: combinedToolEnabled
+      fetchUrl: combinedToolEnabled,
+      quizMode
     })
     
     setInputText('')
@@ -32,6 +34,7 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
     if (imageInputRef.current) {
       imageInputRef.current.value = ''
     }
+  // Keep combinedToolEnabled and quizMode persistent
   }
 
   const handleFileSelect = (event) => {
@@ -41,6 +44,7 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
       setCombinedToolEnabled(false)
       setSelectedImage(null)
       if (imageInputRef.current) imageInputRef.current.value = ''
+      setQuizMode(false)
       setSelectedFile(file)
     }
   }
@@ -60,6 +64,8 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
       if (fileInputRef.current) fileInputRef.current.value = ''
       if (imageInputRef.current) imageInputRef.current.value = ''
     }
+  // Also turn off quiz mode when enabling combined tool
+  setQuizMode(false)
     setCombinedToolEnabled(prev => !prev)
     setToolMenuOpen(false)
   }
@@ -67,6 +73,7 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
   const openFilePicker = () => {
   // Mutual exclusivity: choosing upload clears combined tool and image
   setCombinedToolEnabled(false)
+  setQuizMode(false)
   setSelectedImage(null)
   if (imageInputRef.current) imageInputRef.current.value = ''
     setToolMenuOpen(false)
@@ -76,6 +83,7 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
   const openImagePicker = () => {
     // Mutual exclusivity: choosing image upload clears combined tool and file
     setCombinedToolEnabled(false)
+  setQuizMode(false)
     setSelectedFile(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
     setToolMenuOpen(false)
@@ -102,6 +110,7 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
     })
   // Mutual exclusivity: clear selected PDF and combined tool when selecting an image
   setCombinedToolEnabled(false)
+  setQuizMode(false)
   setSelectedFile(null)
   if (fileInputRef.current) fileInputRef.current.value = ''
   setSelectedImage({ file, previewUrl, mimeType: file.type, base64 })
@@ -229,6 +238,22 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
                           <Search size={16} className="me-2" />
                           بحث الويب + جلب الرابط {combinedToolEnabled ? '✓' : ''}
                         </button>
+                        <button className="dropdown-item d-flex align-items-center" type="button" onClick={() => {
+                          // Mutual exclusivity: enabling quiz clears other tools
+                          const next = !quizMode
+                          if (next) {
+                            setCombinedToolEnabled(false)
+                            setSelectedFile(null)
+                            setSelectedImage(null)
+                            if (fileInputRef.current) fileInputRef.current.value = ''
+                            if (imageInputRef.current) imageInputRef.current.value = ''
+                          }
+                          setQuizMode(next)
+                          setToolMenuOpen(false)
+                        }} disabled={disabled}>
+                          <ListChecks size={16} className="me-2" />
+                          إنشاء اختبار {quizMode ? '✓' : ''}
+                        </button>
                       </div>
                     )}
                   </div>
@@ -270,6 +295,9 @@ const ChatInput = ({ onSendMessage, disabled = false }) => {
             />
             {combinedToolEnabled && (
               <div className="mt-2 small text-primary">باش نخدم بحث على الويب ونجيب محتوى أي رابط تكتبّو في سؤالك.</div>
+            )}
+            {quizMode && (
+              <div className="mt-2 small text-primary">باش نعملك اختبار (أسئلة متعددة الخيارات) على الموضوع إلي كتبتو.</div>
             )}
           </div>
         </div>

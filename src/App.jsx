@@ -19,6 +19,9 @@ function App() {
   const [retryCount, setRetryCount] = useState({}) // Track retry counts per message
   const [downloadingPdf, setDownloadingPdf] = useState(null) // Track which message PDF is being downloaded
   const [generatingPreview, setGeneratingPreview] = useState(null) // Track which message is generating PDF preview
+  const [quizMode, setQuizMode] = useState(false)
+  const [quizConfirmingId, setQuizConfirmingId] = useState(null)
+  const [quizGenerating, setQuizGenerating] = useState(false)
   const messagesEndRef = useRef(null)
 
   const scrollToBottom = () => {
@@ -152,7 +155,7 @@ function App() {
     }
   }
 
-  const handleSendMessage = async ({ text, file, webSearch, fetchUrl, image, pdfExport }) => {
+  const handleSendMessage = async ({ text, file, webSearch, fetchUrl, image, pdfExport, quizMode: sendQuizMode }) => {
     if (!text.trim() && !file && !image) return;
 
     const newMessage = {
@@ -170,7 +173,24 @@ function App() {
       text: msg.text
     }));
 
-    setMessages(prev => [...prev, newMessage]);
+  setMessages(prev => [...prev, newMessage]);
+    // If quiz mode is on, show a confirmation message instead of calling the server
+    if (sendQuizMode) {
+      const confirmMsg = {
+        id: Date.now(),
+        sender: 'ai',
+        text: `تأكيد: تحب نعملك اختبار (أسئلة متعددة الاختيارات) على: "${text}"؟` ,
+        timestamp: new Date(),
+        isQuizConfirm: true,
+        quizSubject: text,
+        quizDefaultQuestions: 5,
+        quizDefaultAnswers: 4
+      }
+      setMessages(prev => [...prev, confirmMsg])
+      setQuizConfirmingId(confirmMsg.id)
+      return
+    }
+
     setIsLoading(true);
 
     try {
@@ -197,14 +217,26 @@ function App() {
         // Force a generic failure path
         throw new Error('SERVICE_ERROR');
       }
-      const aiResponse = {
-        id: messages.length + 2,
-        text: data.reply || 'صارّت مشكلة مؤقتة في الخدمة، جرّب بعد شوية.',
-        sender: 'ai',
-        timestamp: new Date(),
-        isPdfExport: data.isPdfExport || false,
-        pdfContent: data.pdfContent || null
-      };
+      let aiResponse;
+      if (data.isQuiz && Array.isArray(data.quiz)) {
+        aiResponse = {
+          id: messages.length + 2,
+          text: 'اختبار قصير على الموضوع إلي طلبت عليه:',
+          sender: 'ai',
+          timestamp: new Date(),
+          isQuiz: true,
+          quiz: data.quiz,
+        };
+      } else {
+        aiResponse = {
+          id: messages.length + 2,
+          text: data.reply || 'صارّت مشكلة مؤقتة في الخدمة، جرّب بعد شوية.',
+          sender: 'ai',
+          timestamp: new Date(),
+          isPdfExport: data.isPdfExport || false,
+          pdfContent: data.pdfContent || null
+        };
+      }
       setMessages(prev => [...prev, aiResponse]);
     } catch (err) {
       console.error('Fetch/chat error:', err);
@@ -217,24 +249,23 @@ function App() {
       }]);
     }
     setIsLoading(false);
+  }
+
 // Helper to read PDF file as text using PDF.js
 async function readPDFFile(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = async function(e) {
       try {
-  const typedarray = new Uint8Array(e.target.result);
-  const pdf = await getDocument(typedarray).promise;
+        const typedarray = new Uint8Array(e.target.result);
+        const pdf = await getDocument(typedarray).promise;
         let text = '';
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           const content = await page.getTextContent();
           text += content.items.map(item => item.str).join(' ');
         }
-        // Limit PDF text to first 10,000 characters
-        if (text.length > 10000) {
-          text = text.slice(0, 10000);
-        }
+        if (text.length > 10000) text = text.slice(0, 10000);
         resolve(text);
       } catch (err) {
         console.error('PDF parsing error:', err);
@@ -248,6 +279,58 @@ async function readPDFFile(file) {
     reader.readAsArrayBuffer(file);
   });
 }
+
+
+  // Quiz confirm handlers
+  const handleConfirmQuiz = async ({ subject, questions, answers, messageId }) => {
+    setQuizGenerating(true)
+    try {
+      const res = await fetch('http://localhost:3001/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: subject,
+          history: messages.slice(-30).map(m => ({ sender: m.sender, text: m.text })),
+          quizMode: true,
+          quizQuestions: questions,
+          quizOptions: answers,
+          webSearch: true,
+          fetchUrl: true
+        })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error('QUIZ_ERROR')
+      const quizMessage = {
+        id: Date.now(),
+        sender: 'ai',
+        text: 'اختبار قصير على الموضوع إلي طلبت عليه:',
+        timestamp: new Date(),
+        isQuiz: true,
+        quiz: Array.isArray(data.quiz) ? data.quiz : []
+      }
+      // Remove the confirm message and add the quiz
+      setMessages(prev => [...prev.filter(m => m.id !== messageId), quizMessage])
+    } catch (e) {
+      console.error('Quiz generation error:', e)
+      const errorMessage = {
+        id: Date.now(),
+        sender: 'ai',
+        text: 'تعطلت خدمة إنشاء الاختبار مؤقتاً. جرّب بعد شوية.',
+        timestamp: new Date()
+      }
+      setMessages(prev => [...prev, errorMessage])
+    } finally {
+      setQuizGenerating(false)
+      setQuizConfirmingId(null)
+      setQuizMode(false)
+    }
+  }
+
+  const handleCancelQuiz = (messageId) => {
+    // Remove confirm message and turn off quiz mode
+    setMessages(prev => prev.filter(m => m.id !== messageId))
+    setQuizConfirmingId(null)
+    setQuizMode(false)
   }
 
   if (showWelcome) {
@@ -374,6 +457,8 @@ async function readPDFFile(file) {
                   onExport={handleExportPdf}
                   onDownloadPdf={handleDownloadPdf}
                   onConfirmPdfDownload={handleConfirmPdfDownload}
+                  onConfirmQuiz={handleConfirmQuiz}
+                  onCancelQuiz={handleCancelQuiz}
                   onRetry={handleRetry}
                   onEdit={handleEdit}
                   retryCount={message.sender === 'user' ? retryCount[message.id] || 0 : 0}
@@ -389,8 +474,10 @@ async function readPDFFile(file) {
         </div>
       </div>
       <ChatInput 
-        onSendMessage={handleSendMessage}
-        disabled={isLoading || generatingPreview}
+  onSendMessage={handleSendMessage}
+  disabled={isLoading || generatingPreview || Boolean(quizConfirmingId) || quizGenerating}
+  quizMode={quizMode}
+  setQuizMode={setQuizMode}
       />
     </div>
   )

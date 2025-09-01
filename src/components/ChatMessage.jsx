@@ -3,10 +3,13 @@ import ReactMarkdown from 'react-markdown'
 import { motion } from 'framer-motion'
 import { Bot, User, FileText, RotateCcw, Pencil, Copy, Download, Loader2 } from 'lucide-react'
 
-const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, onDownloadPdf, onConfirmPdfDownload, retryCount, downloadingPdf, generatingPreview }) => {
+const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, onDownloadPdf, onConfirmPdfDownload, onConfirmQuiz, onCancelQuiz, retryCount, downloadingPdf, generatingPreview }) => {
   const isUser = message?.sender === 'user'
   // Per-message toggle for including citations in PDF
   const [includeCitations, setIncludeCitations] = useState(true)
+  // Quiz UI state
+  const [quizSelections, setQuizSelections] = useState(() => (message?.isQuiz && Array.isArray(message.quiz) ? Array(message.quiz.length).fill(null) : []))
+  const [quizRevealed, setQuizRevealed] = useState(false)
   
   const formatTime = (date) => {
     return date.toLocaleTimeString('ar-TN', { 
@@ -190,6 +193,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
         </div>
       )}
       <div className="mb-1 message-rtl" style={{ fontSize: '0.97rem', lineHeight: '1.7', wordBreak: 'break-word' }}>
+        {!message.isQuiz ? (
         <ReactMarkdown
           components={{
             code({node, inline, className, children, ...props}) {
@@ -235,7 +239,100 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
         >
           {message.text}
         </ReactMarkdown>
+  ) : (
+          <div className="quiz-block">
+            {Array.isArray(message.quiz) && message.quiz.map((q, qi) => (
+              <div key={qi} className="mb-3 p-2 border rounded">
+                <div className="fw-bold mb-2">{qi + 1}. {q.question}</div>
+                <div className="d-flex flex-column gap-2">
+                  {q.options.map((opt, oi) => {
+                    const selected = quizSelections[qi] === oi
+                    const isCorrect = q.correctIndex === oi
+                    const show = quizRevealed
+                    const bg = show
+                      ? (isCorrect ? 'rgba(25,135,84,0.15)' : (selected ? 'rgba(220,53,69,0.15)' : 'transparent'))
+                      : (selected ? 'rgba(13,110,253,0.12)' : 'transparent')
+                    const border = show
+                      ? (isCorrect ? '1px solid #198754' : (selected ? '1px solid #dc3545' : '1px solid #dee2e6'))
+                      : (selected ? '1px solid #0d6efd' : '1px solid #dee2e6')
+                    return (
+                      <button
+                        key={oi}
+                        type="button"
+                        className="btn text-start"
+                        style={{ background: bg, border, borderRadius: 8 }}
+                        onClick={() => {
+                          if (quizRevealed) return
+                          const next = [...quizSelections]
+                          next[qi] = oi
+                          setQuizSelections(next)
+                        }}
+                      >
+                        <div className="d-flex align-items-center">
+                          <input
+                            type="radio"
+                            name={`q-${message.id}-${qi}`}
+                            checked={selected}
+                            readOnly
+                            className="me-2"
+                          />
+                          <span>{opt}</span>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+            <div className="mt-3">
+              {!quizRevealed ? (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => setQuizRevealed(true)}
+                  disabled={quizSelections.some((s) => s === null)}
+                >
+                  تصحيح الإجابات
+                </button>
+              ) : (
+                <div className="alert alert-info">تم إظهار الإجابات الصحيحة باللون الأخضر والخاطئة بالأحمر.</div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
+      {message.isQuizConfirm && (
+        <div className="mt-3 mb-2">
+          <div className="d-flex flex-wrap align-items-center gap-3">
+            <div className="d-flex align-items-center gap-2">
+              <label className="form-label m-0">عدد الأسئلة</label>
+              <input type="number" className="form-control" defaultValue={message.quizDefaultQuestions || 5} min={5} max={30} style={{ width: 90 }} id={`qcount-${message.id}`} />
+            </div>
+            <div className="d-flex align-items-center gap-2">
+              <label className="form-label m-0">عدد الخيارات</label>
+              <input type="number" className="form-control" defaultValue={message.quizDefaultAnswers || 4} min={2} max={6} style={{ width: 90 }} id={`acount-${message.id}`} />
+            </div>
+            <button
+              type="button"
+              className="btn btn-success"
+              onClick={() => {
+                const questions = Math.max(5, Math.min(30, parseInt(document.getElementById(`qcount-${message.id}`).value || '5', 10)))
+                const answers = Math.max(2, Math.min(6, parseInt(document.getElementById(`acount-${message.id}`).value || '4', 10)))
+                onConfirmQuiz && onConfirmQuiz({ subject: message.quizSubject || '', questions, answers, messageId: message.id })
+              }}
+            >
+              نعم، أنشئ الاختبار
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline-secondary"
+              onClick={() => onCancelQuiz && onCancelQuiz(message.id)}
+            >
+              لا
+            </button>
+          </div>
+        </div>
+      )}
       {message.isPdfPreview && (
         <div className="mt-3 mb-2 d-flex align-items-center gap-3 flex-wrap">
           <div className="form-check form-switch d-flex align-items-center">
