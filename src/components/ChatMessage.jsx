@@ -1,10 +1,12 @@
-import React from 'react'
+import React, { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { motion } from 'framer-motion'
 import { Bot, User, FileText, RotateCcw, Pencil, Copy, Download, Loader2 } from 'lucide-react'
 
 const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, onDownloadPdf, onConfirmPdfDownload, retryCount, downloadingPdf, generatingPreview }) => {
   const isUser = message?.sender === 'user'
+  // Per-message toggle for including citations in PDF
+  const [includeCitations, setIncludeCitations] = useState(true)
   
   const formatTime = (date) => {
     return date.toLocaleTimeString('ar-TN', { 
@@ -235,11 +237,23 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
         </ReactMarkdown>
       </div>
       {message.isPdfPreview && (
-        <div className="mt-3 mb-2">
+        <div className="mt-3 mb-2 d-flex align-items-center gap-3 flex-wrap">
+          <div className="form-check form-switch d-flex align-items-center">
+            <input
+              className="form-check-input"
+              type="checkbox"
+              id={`citations-switch-${message.id}`}
+              checked={includeCitations}
+              onChange={(e) => setIncludeCitations(e.target.checked)}
+            />
+            <label className="form-check-label ms-2" htmlFor={`citations-switch-${message.id}`}>
+              المراجع
+            </label>
+          </div>
           <button
             type="button"
             className="btn btn-success d-flex align-items-center gap-2"
-            onClick={() => onConfirmPdfDownload && onConfirmPdfDownload(message.pdfData, message.id)}
+            onClick={() => onConfirmPdfDownload && onConfirmPdfDownload(message.pdfData, message.id, includeCitations)}
             disabled={downloadingPdf === message.id}
           >
             {downloadingPdf === message.id ? (

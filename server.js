@@ -614,12 +614,22 @@ app.post("/export-pdf", async (req, res) => {
     const aiMessages = messages.filter(
       (msg) => msg.sender === "ai" && !msg.isWelcomeMessage
     );
+    // If no AI messages, fall back to last user message so preview still works
+    let combinedContent = "";
     if (aiMessages.length === 0) {
-      return res.status(400).json({ error: "ما فماش رسائل AI للتصدير." });
+      const lastUser = Array.isArray(messages)
+        ? [...messages]
+            .reverse()
+            .find((m) => m && m.sender === "user" && m.text)
+        : null;
+      if (!lastUser) {
+        return res.status(400).json({ error: "ما فماش محتوى واضح للتصدير." });
+      }
+      combinedContent = String(lastUser.text || "");
+    } else {
+      // Combine all AI content
+      combinedContent = aiMessages.map((msg) => msg.text).join("\n\n");
     }
-
-    // Combine all AI content
-    let combinedContent = aiMessages.map((msg) => msg.text).join("\n\n");
 
     // Transform the content to academic format using Gemini
     let refinedContent = combinedContent;
@@ -673,6 +683,7 @@ ${DARIJA_STYLE_GUIDE}
             response.statusText
           );
           console.error(textBody);
+          // Keep refinedContent as original combinedContent on failure
         } else {
           let data;
           try {
@@ -697,6 +708,7 @@ ${DARIJA_STYLE_GUIDE}
         "Refinement step failed, falling back to original text:",
         e.message
       );
+      // refinedContent already defaults to combinedContent
     }
 
     // Create the preview message with the actual refined content
@@ -721,7 +733,7 @@ ${refinedContent}`;
 // PDF Download endpoint - actually generates the PDF
 app.post("/download-pdf", async (req, res) => {
   try {
-    const { messages } = req.body || {};
+    const { messages, includeCitations } = req.body || {};
     if (!messages || !Array.isArray(messages)) {
       return res.status(400).json({ error: "نقص شوية معلومات لإنشاء ال-PDF." });
     }
@@ -730,12 +742,21 @@ app.post("/download-pdf", async (req, res) => {
     const aiMessages = messages.filter(
       (msg) => msg.sender === "ai" && !msg.isWelcomeMessage
     );
+    // If no AI messages, fall back to last user message so download still works
+    let combinedContent = "";
     if (aiMessages.length === 0) {
-      return res.status(400).json({ error: "ما فماش رسائل AI للتصدير." });
+      const lastUser = Array.isArray(messages)
+        ? [...messages]
+            .reverse()
+            .find((m) => m && m.sender === "user" && m.text)
+        : null;
+      if (!lastUser) {
+        return res.status(400).json({ error: "ما فماش محتوى واضح للتصدير." });
+      }
+      combinedContent = String(lastUser.text || "");
+    } else {
+      combinedContent = aiMessages.map((msg) => msg.text).join("\n\n");
     }
-
-    // Combine all AI content
-    let combinedContent = aiMessages.map((msg) => msg.text).join("\n\n");
 
     // Attempt to refine the content using the model (Darija academic long-form, markdown output)
     let refined = combinedContent;
@@ -794,6 +815,7 @@ ${DARIJA_STYLE_GUIDE}
             response.statusText
           );
           console.error(textBody);
+          // Keep refined as original combinedContent on failure
         } else {
           let data;
           try {
@@ -818,6 +840,7 @@ ${DARIJA_STYLE_GUIDE}
         "Refinement step failed, falling back to original text:",
         e.message
       );
+      // refined already defaults to combinedContent
     }
 
     // Enforce Tunisian lexicon before rendering
@@ -833,7 +856,7 @@ ${DARIJA_STYLE_GUIDE}
       )}</pre>`;
     }
 
-    // --- Force web search + URL fetch to gather sources, then extract citations ---
+    // --- Force web search + URL fetch to gather sources, then extract citations (if enabled) ---
     const urlRegexGlobal = /https?:\/\/[^\s)]+/gi;
     const urlsFromText = refined.match(urlRegexGlobal) || [];
     const urlsFromMsgs = aiMessages
@@ -1005,32 +1028,36 @@ ${DARIJA_STYLE_GUIDE}
       return info;
     };
 
-    const metaList = [];
-    for (const u of allUrls) {
-      // Sequential to avoid too many concurrent requests; still fast with slice(0,6)
-      // eslint-disable-next-line no-await-in-loop
-      const meta = await fetchMetaForUrl(u);
-      metaList.push(meta);
-    }
-
     let referencesHtml = "";
-    if (metaList.length > 0) {
-      const lis = metaList
-        .map((m, i) => {
-          const n = i + 1;
-          const site = m.site || new URL(m.url).hostname.replace(/^www\./, "");
-          const title = m.title || site;
-          const pub = m.published ? `Published: ${m.published}. ` : "";
-          return (
-            `<li style='margin:4pt 0; list-style:none; direction:ltr; text-align:left; word-break:break-word;'>` +
-            `[${n}] ${site}. ${title}. ${pub}Accessed: ${accessedStr}. URL: ${m.url}` +
-            `</li>`
-          );
-        })
-        .join("");
-      referencesHtml = `<h2 style='margin-top:18mm'>المراجع</h2><ul style='padding-left:0; font-size:12.5pt;'>${lis}</ul>`;
+    if (includeCitations !== false) {
+      const metaList = [];
+      for (const u of allUrls) {
+        // Sequential to avoid too many concurrent requests; still fast with slice(0,6)
+        // eslint-disable-next-line no-await-in-loop
+        const meta = await fetchMetaForUrl(u);
+        metaList.push(meta);
+      }
+      if (metaList.length > 0) {
+        const lis = metaList
+          .map((m, i) => {
+            const n = i + 1;
+            const site =
+              m.site || new URL(m.url).hostname.replace(/^www\./, "");
+            const title = m.title || site;
+            const pub = m.published ? `Published: ${m.published}. ` : "";
+            return (
+              `<li style='margin:4pt 0; list-style:none; direction:ltr; text-align:left; word-break:break-word;'>` +
+              `[${n}] ${site}. ${title}. ${pub}Accessed: ${accessedStr}. URL: ${m.url}` +
+              `</li>`
+            );
+          })
+          .join("");
+        referencesHtml = `<h2 style='margin-top:18mm'>المراجع</h2><ul style='padding-left:0; font-size:12.5pt;'>${lis}</ul>`;
+      } else {
+        referencesHtml = `<h2 style='margin-top:18mm'>المراجع</h2><p style='font-size:12pt;color:#888'>لا توجد مراجع مستعملة في هذا التقرير.</p>`;
+      }
     } else {
-      referencesHtml = `<h2 style='margin-top:18mm'>المراجع</h2><p style='font-size:12pt;color:#888'>لا توجد مراجع مستعملة في هذا التقرير.</p>`;
+      referencesHtml = ""; // Skip references section entirely
     }
 
     const html = `<!doctype html>

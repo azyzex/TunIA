@@ -104,13 +104,13 @@ function App() {
   }
 
   // Handler for confirming PDF download after preview
-  const handleConfirmPdfDownload = async (pdfData, messageId) => {
+  const handleConfirmPdfDownload = async (pdfData, messageId, includeCitations = true) => {
     setDownloadingPdf(messageId)
     try {
       const pdfResponse = await fetch('http://localhost:3001/download-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: pdfData })
+        body: JSON.stringify({ messages: pdfData, includeCitations })
       })
       
       if (!pdfResponse.ok) throw new Error('PDF download failed')
