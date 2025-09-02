@@ -10,6 +10,8 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
   // Quiz UI state
   const [quizSelections, setQuizSelections] = useState(() => (message?.isQuiz && Array.isArray(message.quiz) ? Array(message.quiz.length).fill(null) : []))
   const [quizRevealed, setQuizRevealed] = useState(false)
+  // Quiz confirm params state
+  const [selDifficulties, setSelDifficulties] = useState(['medium']) // easy, medium, hard
   
   const formatTime = (date) => {
     return date.toLocaleTimeString('ar-TN', { 
@@ -312,14 +314,33 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
               <label className="form-label m-0">عدد الخيارات</label>
               <input type="number" className="form-control" defaultValue={message.quizDefaultAnswers || 4} min={2} max={6} style={{ width: 90 }} id={`acount-${message.id}`} />
             </div>
+            {/* Difficulties multi-select */}
+            <div className="d-flex align-items-center gap-2 flex-wrap">
+              <label className="form-label m-0">الصعوبة</label>
+              {['easy','medium','hard'].map(d => (
+                <button
+                  key={d}
+                  type="button"
+                  className={`btn btn-sm ${selDifficulties.includes(d) ? 'btn-primary' : 'btn-outline-primary'}`}
+                  onClick={() => {
+                    const next = selDifficulties.includes(d) ? selDifficulties.filter(x=>x!==d) : [...selDifficulties, d]
+                    setSelDifficulties(next.length ? next : selDifficulties) // prevent empty via UI; we'll still guard on Yes
+                  }}
+                >
+                  {d==='easy'?'سهل':d==='medium'?'متوسط':'صعب'}
+                </button>
+              ))}
+            </div>
             <button
               type="button"
               className="btn btn-success"
               onClick={() => {
                 const questions = Math.max(5, Math.min(30, parseInt(document.getElementById(`qcount-${message.id}`).value || '5', 10)))
                 const answers = Math.max(2, Math.min(6, parseInt(document.getElementById(`acount-${message.id}`).value || '4', 10)))
-                onConfirmQuiz && onConfirmQuiz({ subject: message.quizSubject || '', questions, answers, messageId: message.id })
+                if (!selDifficulties.length) return // At least one difficulty must be selected
+                onConfirmQuiz && onConfirmQuiz({ subject: message.quizSubject || '', questions, answers, difficulties: selDifficulties, messageId: message.id })
               }}
+              disabled={!selDifficulties.length}
             >
               نعم، أنشئ الاختبار
             </button>

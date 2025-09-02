@@ -162,7 +162,7 @@ const DARIJA_STYLE_GUIDE = `
 `;
 
 app.post("/api/chat", async (req, res) => {
-  const { message, history, pdfText, webSearch, image, pdfExport, quizMode, quizQuestions, quizOptions } =
+  const { message, history, pdfText, webSearch, image, pdfExport, quizMode, quizQuestions, quizOptions, quizDifficulties } =
     req.body || {};
   const { fetchUrl } = req.body || {};
   // Language request detection (explicit instructions override Darija)
@@ -295,6 +295,8 @@ ${DARIJA_STYLE_GUIDE}
 - question: نص السؤال (بالدارجة التونسية، واضح وقصير)
 - options: Array من ${aCount} خيارات نصية، مختلفة وواضحة
 - correctIndex: رقم صحيح من 0 إلى ${aCount - 1} يدل على الإجابة الصحيحة
+
+مستوى الصعوبة المطلوب: ${Array.isArray(quizDifficulties) && quizDifficulties.length > 0 ? quizDifficulties.map(d => d === 'easy' ? 'سهل' : d === 'medium' ? 'متوسط' : 'صعب').join('، ') : 'متوسط'}
 
 مثال للعنصر:
 { "question": "شنوّة ...؟", "options": ["...","...","...","..."], "correctIndex": 1 }
