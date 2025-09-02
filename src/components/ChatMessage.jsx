@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import { motion } from 'framer-motion'
 import { Bot, User, FileText, RotateCcw, Pencil, Copy, Download, Loader2 } from 'lucide-react'
 
-const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, onDownloadPdf, onConfirmPdfDownload, onConfirmQuiz, onCancelQuiz, retryCount, downloadingPdf, generatingPreview }) => {
+const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, onDownloadPdf, onConfirmPdfDownload, onConfirmQuiz, onCancelQuiz, retryCount, downloadingPdf, generatingPreview, quizGenerating = false }) => {
   const isUser = message?.sender === 'user'
   // Per-message toggle for including citations in PDF
   const [includeCitations, setIncludeCitations] = useState(true)
@@ -465,11 +465,11 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
           <div className="d-flex flex-wrap align-items-center gap-3">
             <div className="d-flex align-items-center gap-2">
               <label className="form-label m-0">عدد الأسئلة</label>
-              <input type="number" className="form-control" defaultValue={message.quizDefaultQuestions || 5} min={5} max={30} style={{ width: 90 }} id={`qcount-${message.id}`} />
+              <input type="number" className="form-control" defaultValue={message.quizDefaultQuestions || 5} min={2} max={40} style={{ width: 90 }} id={`qcount-${message.id}`} />
             </div>
             <div className="d-flex align-items-center gap-2">
               <label className="form-label m-0">عدد الخيارات</label>
-              <input type="number" className="form-control" defaultValue={message.quizDefaultAnswers || 4} min={2} max={6} style={{ width: 90 }} id={`acount-${message.id}`} />
+              <input type="number" className="form-control" defaultValue={message.quizDefaultAnswers || 4} min={2} max={5} style={{ width: 90 }} id={`acount-${message.id}`} />
             </div>
             {/* Difficulties multi-select */}
             <div className="d-flex align-items-center gap-2 flex-wrap">
@@ -534,10 +534,10 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
             </div>
             <button
               type="button"
-              className="btn btn-success"
+              className="btn btn-success d-flex align-items-center gap-2"
               onClick={() => {
-                const questions = Math.max(5, Math.min(30, parseInt(document.getElementById(`qcount-${message.id}`).value || '5', 10)))
-                const answers = Math.max(2, Math.min(6, parseInt(document.getElementById(`acount-${message.id}`).value || '4', 10)))
+                const questions = Math.max(2, Math.min(40, parseInt(document.getElementById(`qcount-${message.id}`).value || '5', 10)))
+                const answers = Math.max(2, Math.min(5, parseInt(document.getElementById(`acount-${message.id}`).value || '4', 10)))
                 if (!selDifficulties.length || !selTypes.length) return
                 onConfirmQuiz && onConfirmQuiz({ 
                   subject: message.quizSubject || '', 
@@ -549,9 +549,16 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                   messageId: message.id 
                 })
               }}
-              disabled={!selDifficulties.length || !selTypes.length}
+              disabled={!selDifficulties.length || !selTypes.length || quizGenerating}
             >
-              نعم، أنشئ الاختبار
+              {quizGenerating ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" />
+                  <span>جاري إنشاء الاختبار...</span>
+                </>
+              ) : (
+                <span>نعم، أنشئ الاختبار</span>
+              )}
             </button>
             <button
               type="button"

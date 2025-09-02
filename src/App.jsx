@@ -468,6 +468,7 @@ async function readPDFFile(file) {
                   retryCount={message.sender === 'user' ? retryCount[message.id] || 0 : 0}
                   downloadingPdf={downloadingPdf}
                   generatingPreview={generatingPreview}
+                  quizGenerating={quizGenerating}
                 />
               ))}
             </AnimatePresence>
