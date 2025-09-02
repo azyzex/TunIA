@@ -15,9 +15,15 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
   const [selTypes, setSelTypes] = useState(['mcq']) // mcq, mcma, tf, fitb
   const [timerEnabled, setTimerEnabled] = useState(false)
   const [timerMinutes, setTimerMinutes] = useState(10)
+  const [hintsEnabled, setHintsEnabled] = useState(false)
+  // Input validation state
+  const [questionsCount, setQuestionsCount] = useState(message?.quizDefaultQuestions || 5)
+  const [answersCount, setAnswersCount] = useState(message?.quizDefaultAnswers || 4)
   // Timer state for active quiz
   const [timeRemaining, setTimeRemaining] = useState(null)
   const [timerExpired, setTimerExpired] = useState(false)
+  // Hints state for individual questions
+  const [hintsVisible, setHintsVisible] = useState([])
 
   // Initialize selections when a quiz arrives
   React.useEffect(() => {
@@ -30,6 +36,8 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
       })
       setQuizSelections(init)
       setQuizRevealed(false)
+      // Initialize hints visibility (all hidden by default)
+      setHintsVisible(Array(message.quiz.length).fill(false))
     }
   }, [message?.isQuiz, Array.isArray(message?.quiz) ? message.quiz.length : 0])
 
@@ -321,6 +329,27 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
               return (
                 <div key={qi} className="mb-3 p-2 border rounded">
                   <div className="fw-bold mb-2">{qi + 1}. {q.question}</div>
+                  {q.hint && (
+                    <div className="mb-2">
+                      <button
+                        type="button"
+                        className="btn btn-outline-info btn-sm"
+                        onClick={() => {
+                          const next = [...hintsVisible]
+                          next[qi] = !next[qi]
+                          setHintsVisible(next)
+                        }}
+                        style={{ fontSize: '0.8rem' }}
+                      >
+                        💡 {hintsVisible[qi] ? 'إخفاء التلميحة' : 'إظهار تلميحة'}
+                      </button>
+                      {hintsVisible[qi] && (
+                        <div className="mt-2 p-2 bg-light rounded" style={{ fontSize: '0.85rem', color: '#666', fontStyle: 'italic' }}>
+                          {q.hint}
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {type === 'fitb' ? (
                     <div className="d-flex align-items-center gap-2">
                       <input
@@ -465,11 +494,27 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
           <div className="d-flex flex-wrap align-items-center gap-3">
             <div className="d-flex align-items-center gap-2">
               <label className="form-label m-0">عدد الأسئلة</label>
-              <input type="number" className="form-control" defaultValue={message.quizDefaultQuestions || 5} min={2} max={40} style={{ width: 90 }} id={`qcount-${message.id}`} />
+              <input 
+                type="number" 
+                className={`form-control ${questionsCount < 2 || questionsCount > 40 ? 'is-invalid' : ''}`}
+                value={questionsCount}
+                onChange={(e) => setQuestionsCount(parseInt(e.target.value) || 2)}
+                min={2} 
+                max={40} 
+                style={{ width: 90 }} 
+              />
             </div>
             <div className="d-flex align-items-center gap-2">
               <label className="form-label m-0">عدد الخيارات</label>
-              <input type="number" className="form-control" defaultValue={message.quizDefaultAnswers || 4} min={2} max={5} style={{ width: 90 }} id={`acount-${message.id}`} />
+              <input 
+                type="number" 
+                className={`form-control ${answersCount < 2 || answersCount > 5 ? 'is-invalid' : ''}`}
+                value={answersCount}
+                onChange={(e) => setAnswersCount(parseInt(e.target.value) || 2)}
+                min={2} 
+                max={5} 
+                style={{ width: 90 }} 
+              />
             </div>
             {/* Difficulties multi-select */}
             <div className="d-flex align-items-center gap-2 flex-wrap">
@@ -532,13 +577,27 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                 </div>
               )}
             </div>
+            {/* Hints toggle */}
+            <div className="d-flex align-items-center gap-2">
+              <div className="form-check form-switch">
+                <input
+                  className="form-check-input"
+                  type="checkbox"
+                  id={`hints-switch-${message.id}`}
+                  checked={hintsEnabled}
+                  onChange={(e) => setHintsEnabled(e.target.checked)}
+                />
+                <label className="form-check-label" htmlFor={`hints-switch-${message.id}`}>
+                  تلميحات
+                </label>
+              </div>
+            </div>
             <button
               type="button"
               className="btn btn-success d-flex align-items-center gap-2"
               onClick={() => {
-                const questions = Math.max(2, Math.min(40, parseInt(document.getElementById(`qcount-${message.id}`).value || '5', 10)))
-                const answers = Math.max(2, Math.min(5, parseInt(document.getElementById(`acount-${message.id}`).value || '4', 10)))
-                if (!selDifficulties.length || !selTypes.length) return
+                const questions = Math.max(2, Math.min(40, questionsCount))
+                const answers = Math.max(2, Math.min(5, answersCount))
                 onConfirmQuiz && onConfirmQuiz({ 
                   subject: message.quizSubject || '', 
                   questions, 
@@ -546,10 +605,17 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                   difficulties: selDifficulties, 
                   types: selTypes, 
                   timer: timerEnabled ? timerMinutes : null,
+                  hints: hintsEnabled,
                   messageId: message.id 
                 })
               }}
-              disabled={!selDifficulties.length || !selTypes.length || quizGenerating}
+              disabled={
+                !selDifficulties.length || 
+                !selTypes.length || 
+                quizGenerating ||
+                questionsCount < 2 || questionsCount > 40 ||
+                answersCount < 2 || answersCount > 5
+              }
             >
               {quizGenerating ? (
                 <>

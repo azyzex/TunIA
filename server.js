@@ -162,7 +162,7 @@ const DARIJA_STYLE_GUIDE = `
 `;
 
 app.post("/api/chat", async (req, res) => {
-  const { message, history, pdfText, webSearch, image, pdfExport, quizMode, quizQuestions, quizOptions, quizDifficulties, quizTypes, quizTimer } =
+  const { message, history, pdfText, webSearch, image, pdfExport, quizMode, quizQuestions, quizOptions, quizDifficulties, quizTypes, quizTimer, quizHints } =
     req.body || {};
   const { fetchUrl } = req.body || {};
   // Language request detection (explicit instructions override Darija)
@@ -288,20 +288,46 @@ app.post("/api/chat", async (req, res) => {
       } catch (_) {
         // ignore web context aggregation errors for quiz
       }
+      const selectedTypes = Array.isArray(quizTypes) && quizTypes.length > 0 ? quizTypes : ['mcq'];
       const QUIZ_INSTR = `
 ${DARIJA_STYLE_GUIDE}
 
-بدون أي شرح إضافي، رجّع JSON نقي فقط (Array) فيه ${qCount} أسئلة حول الموضوع التالي، كل عنصر عندو:
+بدون أي شرح إضافي، رجّع JSON نقي فقط (Array) فيه ${qCount} أسئلة **تعليمية وحقائقية** حول الموضوع التالي.
 
-أنواع الأسئلة المطلوبة: ${Array.isArray(quizTypes) && quizTypes.length > 0 ? quizTypes.map(t => {
-  if (t === 'mcq') return 'اختيار واحد';
-  if (t === 'mcma') return 'اختيارات متعددة';
-  if (t === 'tf') return 'صح/غلط';
-  if (t === 'fitb') return 'فراغ';
-  return t;
-}).join('، ') : 'اختيار واحد'}
+**قواعد مهمة جداً للأسئلة**:
+1. لازم تكون الأسئلة **حقائقية** (factual) وليس آراء شخصية
+2. لازم يكون في إجابة واحدة صحيحة واضحة أو إجابات محددة
+3. ما تسألش على الآراء مثل "شنوة رايك في..." أو "كيف تشوف..."
+4. اسأل على **معلومات ومفاهيم وحقائق** متعلقة بالموضوع
+5. استعمل أسئلة تبدأ بـ: "شنوة..."، "كيفاش..."، "وين..."، "قدّاش..."، "علاش..."
+6. لا تكرر نفس السؤال أبداً - كل سؤال لازم يكون مختلف تماماً
+
+**أنواع الأسئلة المسموحة فقط**: ${selectedTypes.map(t => {
+  if (t === 'mcq') return '"mcq" (اختيار واحد)';
+  if (t === 'mcma') return '"mcma" (اختيارات متعددة)';
+  if (t === 'tf') return '"tf" (صح/غلط)';
+  if (t === 'fitb') return '"fitb" (فراغ)';
+  return `"${t}"`;
+}).join('، ')}
+
+لا تستعمل أي نوع آخر من الأسئلة غير الموجود في القائمة أعلاه.
+
+${selectedTypes.length > 1 ? `وزع الأسئلة على الأنواع المختارة بطريقة متوازنة. مثلاً: إذا كان عندك ${qCount} أسئلة و${selectedTypes.length} أنواع، وزع الأسئلة بطريقة متوازنة.` : ''}
+
+**أمثلة لأسئلة صحيحة**:
+- "شنوة الغرض الأساسي من MongoDB؟"
+- "كيفاش يتم تخزين البيانات في MongoDB؟"
+- "MongoDB قاعدة بيانات علائقية؟" (للـ tf)
+- "المجموعة الأساسية للبيانات في MongoDB تسمى _____" (للـ fitb)
+
+**أمثلة لأسئلة ممنوعة تماماً**:
+- "شنوة رايك في MongoDB؟"
+- "كيف تشوف MongoDB؟"
+- "MongoDB أحسن من MySQL؟" (سؤال رأي)
 
 مستوى الصعوبة المطلوب: ${Array.isArray(quizDifficulties) && quizDifficulties.length > 0 ? quizDifficulties.map(d => d === 'easy' ? 'سهل' : d === 'medium' ? 'متوسط' : 'صعب').join('، ') : 'متوسط'}
+
+مهم جداً للـ MCMA: لازم تكون الإجابات الصحيحة متنوعة ومنطقية، مش كلها صحيحة. مثلاً: من 4 خيارات، ممكن 1 أو 2 أو 3 يكونوا صحاح، أما مش لازم الكل.
 
 لكل سؤال:
 - type: نوع السؤال ("mcq" للاختيار الواحد، "mcma" للاختيارات المتعددة، "tf" لصح/غلط، "fitb" للفراغ)
@@ -311,13 +337,19 @@ ${DARIJA_STYLE_GUIDE}
 - correctIndices: Array من أرقام الإجابات الصحيحة للـ mcma
 - answerText: النص الصحيح للـ fitb
 - acceptableAnswers: Array من الإجابات المقبولة للـ fitb (اختياري)
-- explanation: شرح مفصل ليه الإجابة الصحيحة صحيحة والباقي غلط (بالدارجة التونسية)
+- explanation: شرح مفصل ليه الإجابة الصحيحة صحيحة والباقي غلط (بالدارجة التونسية)${quizHints ? `
+- hint: تلميحة **مفيدة حقاً** تساعد في حل السؤال. أمثلة جيدة: 
+  * للـ MCQ: "تفكر في الاستعمال الأساسي..." أو "هاذا مربوط بـ..." أو "اقرا الخيار الثاني مليح"
+  * للـ MCMA: "الإجابات الصحيحة عادة تكون متشابهة في..." أو "ركز على الخيارات إلي فيها كلمة..."
+  * للـ TF: "فكر: هل MongoDB نفس Excel؟" أو "هاذي الحاجة تشبه..." أو "اسأل روحك هل..."  
+  * للـ FITB: "الكلمة تبدأ بـ... وعندها _ حروف" أو "مرادف لـ..." أو "ضد كلمة..."
+  التلميحة لازم تعطي اتجاه واضح أو تلميح مباشر بلا ما تقول الإجابة نهائياً (بالدارجة التونسية)` : ''}
 
 أمثلة:
-MCQ: { "type": "mcq", "question": "شنوّة ...؟", "options": ["...","...","...","..."], "correctIndex": 1, "explanation": "الإجابة الثانية صحيحة خاطر..." }
-MCMA: { "type": "mcma", "question": "أشنية من هذول ...؟", "options": ["...","...","...","..."], "correctIndices": [0,2], "explanation": "الخيارين الأول والثالث صحاح خاطر..." }
-TF: { "type": "tf", "question": "... صحيح؟", "options": ["صحيح","غلط"], "correctIndex": 0, "explanation": "صحيح خاطر..." }
-FITB: { "type": "fitb", "question": "... هو ___", "answerText": "الجواب", "acceptableAnswers": ["الجواب","جواب"], "explanation": "الجواب الصحيح هو 'الجواب' خاطر..." }
+MCQ: { "type": "mcq", "question": "شنوّة ...؟", "options": ["...","...","...","..."], "correctIndex": 1, "explanation": "الإجابة الثانية صحيحة خاطر..."${quizHints ? ', "hint": "اقرا الخيار الثاني مليح - فيه كلمة مهمة تبدأ بحرف \'د\'"' : ''} }
+MCMA: { "type": "mcma", "question": "أشنية من هذول ...؟", "options": ["...","...","...","..."], "correctIndices": [0,2], "explanation": "الخيارين الأول والثالث صحاح خاطر..."${quizHints ? ', "hint": "الإجابات الصحيحة عادة تكون مربوطة بالبيانات والتخزين"' : ''} }
+TF: { "type": "tf", "question": "... صحيح؟", "options": ["صحيح","غلط"], "correctIndex": 0, "explanation": "صحيح خاطر..."${quizHints ? ', "hint": "فكر: هل MongoDB يشبه Excel؟ الجواب واضح"' : ''} }
+FITB: { "type": "fitb", "question": "... هو ___", "answerText": "الجواب", "acceptableAnswers": ["الجواب","جواب"], "explanation": "الجواب الصحيح هو 'الجواب' خاطر..."${quizHints ? ', "hint": "الكلمة عندها 6 حروف وتبدأ بـ \'ج\' وتعني النتيجة"' : ''} }
 
 الموضوع: ${subject}
 ${contextSnippets.length ? `
@@ -332,7 +364,7 @@ ${contextSnippets.map((t,i)=>`[${i+1}] ${t}`).join('\n\n')}
         const response = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contents: [ { role: "user", parts: [{ text: QUIZ_INSTR }] } ], generationConfig: { temperature: 0.6, maxOutputTokens: 2048 } }),
+          body: JSON.stringify({ contents: [ { role: "user", parts: [{ text: QUIZ_INSTR }] } ], generationConfig: { temperature: 0.3, maxOutputTokens: 2048 } }),
         });
         const textBody = await response.text();
         if (response.ok) {
@@ -361,8 +393,16 @@ ${contextSnippets.map((t,i)=>`[${i+1}] ${t}`).join('\n\n')}
           .filter((q) => q && typeof q.question === "string")
           .map((q) => {
             const type = String(q.type || 'mcq').toLowerCase();
+            
+            // STRICT TYPE CHECKING: Only allow selected types
+            if (!selectedTypes.includes(type)) {
+              console.log(`Filtering out question type "${type}" - not in selected types:`, selectedTypes);
+              return null;
+            }
+            
             const question = enforceTunisianLexicon(q.question).slice(0, 200);
             const explanation = enforceTunisianLexicon(String(q.explanation || 'لم يتم توفير شرح لهذا السؤال.').trim()).slice(0, 500);
+            const hint = quizHints ? enforceTunisianLexicon(String(q.hint || '').trim()).slice(0, 300) : null;
             
             if (type === 'mcq') {
               if (!Array.isArray(q.options)) return null;
@@ -370,7 +410,9 @@ ${contextSnippets.map((t,i)=>`[${i+1}] ${t}`).join('\n\n')}
               while (opts.length < aCount) opts.push("خيار إضافي");
               let idx = Number.isInteger(q.correctIndex) ? q.correctIndex : 0;
               if (idx < 0 || idx >= opts.length) idx = 0;
-              return { type: 'mcq', question, options: opts.map(enforceTunisianLexicon), correctIndex: idx, explanation };
+              const result = { type: 'mcq', question, options: opts.map(enforceTunisianLexicon), correctIndex: idx, explanation };
+              if (hint) result.hint = hint;
+              return result;
             }
             else if (type === 'mcma') {
               if (!Array.isArray(q.options)) return null;
@@ -378,26 +420,44 @@ ${contextSnippets.map((t,i)=>`[${i+1}] ${t}`).join('\n\n')}
               while (opts.length < aCount) opts.push("خيار إضافي");
               let indices = Array.isArray(q.correctIndices) ? q.correctIndices.filter(i => Number.isInteger(i) && i >= 0 && i < opts.length) : [0];
               if (!indices.length) indices = [0];
-              return { type: 'mcma', question, options: opts.map(enforceTunisianLexicon), correctIndices: indices, explanation };
+              
+              // If all answers are marked as correct and we have more than 2 options, 
+              // randomize it 70% of the time to make it more realistic (but still allow all-correct sometimes)
+              if (indices.length === opts.length && opts.length > 2 && Math.random() < 0.7) {
+                const numCorrect = Math.max(1, Math.min(opts.length - 1, Math.floor(Math.random() * (opts.length - 1)) + 1));
+                indices = [];
+                while (indices.length < numCorrect) {
+                  const idx = Math.floor(Math.random() * opts.length);
+                  if (!indices.includes(idx)) indices.push(idx);
+                }
+                indices.sort();
+              }
+              
+              const result = { type: 'mcma', question, options: opts.map(enforceTunisianLexicon), correctIndices: indices, explanation };
+              if (hint) result.hint = hint;
+              return result;
             }
             else if (type === 'tf') {
               const opts = ["صحيح", "غلط"];
               let idx = Number.isInteger(q.correctIndex) ? q.correctIndex : 0;
               if (idx < 0 || idx > 1) idx = 0;
-              return { type: 'tf', question, options: opts, correctIndex: idx, explanation };
+              const result = { type: 'tf', question, options: opts, correctIndex: idx, explanation };
+              if (hint) result.hint = hint;
+              return result;
             }
             else if (type === 'fitb') {
               const answerText = String(q.answerText || '').trim() || 'الجواب';
               const acceptableAnswers = Array.isArray(q.acceptableAnswers) 
                 ? q.acceptableAnswers.map(a => String(a).trim()).filter(Boolean)
                 : [answerText];
-              return { type: 'fitb', question, answerText: enforceTunisianLexicon(answerText), acceptableAnswers: acceptableAnswers.map(enforceTunisianLexicon), explanation };
+              const result = { type: 'fitb', question, answerText: enforceTunisianLexicon(answerText), acceptableAnswers: acceptableAnswers.map(enforceTunisianLexicon), explanation };
+              if (hint) result.hint = hint;
+              return result;
             }
             else {
-              // Default to mcq for unknown types
-              const opts = Array.isArray(q.options) ? q.options.slice(0, aCount).map((o) => String(o).trim()).filter(Boolean) : [];
-              while (opts.length < aCount) opts.push("خيار إضافي");
-              return { type: 'mcq', question, options: opts.map(enforceTunisianLexicon), correctIndex: 0, explanation };
+              // If type is unknown and not in selected types, filter it out
+              console.log(`Unknown question type "${type}" - filtering out`);
+              return null;
             }
           })
           .filter(Boolean)
@@ -406,26 +466,27 @@ ${contextSnippets.map((t,i)=>`[${i+1}] ${t}`).join('\n\n')}
       let finalQuiz = sanitizeQuiz(quiz);
       if (finalQuiz.length < 3) {
         // Fallback simple quiz if model failed - cycle through selected types
-        const selectedTypes = Array.isArray(quizTypes) && quizTypes.length > 0 ? quizTypes : ['mcq'];
         const baseQ = (i) => {
           const type = selectedTypes[i % selectedTypes.length];
           const questionNum = i + 1;
           
           if (type === 'mcq') {
             const baseOptions = [
-              enforceTunisianLexicon(`موضوع مهم ومفيد`),
-              enforceTunisianLexicon("الإجابة هاذي مغلوطة"),
-              enforceTunisianLexicon("ما عندهاش علاقة مباشرة"),
-              enforceTunisianLexicon("اختيار تجريبي"),
-              enforceTunisianLexicon("خيار إضافي")
+              enforceTunisianLexicon(`معلومة أساسية ومهمة`),
+              enforceTunisianLexicon("معلومة مغلوطة"),
+              enforceTunisianLexicon("معلومة غير دقيقة"),
+              enforceTunisianLexicon("معلومة غير متعلقة"),
+              enforceTunisianLexicon("معلومة إضافية")
             ];
-            return {
+            const result = {
               type: 'mcq',
-              question: enforceTunisianLexicon(`سؤال ${questionNum}: شنوة رايك في "${subject}"؟`),
+              question: enforceTunisianLexicon(`سؤال ${questionNum}: شنوة الغرض الأساسي من استعمال "${subject}"؟`),
               options: baseOptions.slice(0, aCount),
               correctIndex: 0,
-              explanation: enforceTunisianLexicon("الإجابة الأولى صحيحة خاطر أي موضوع تعليمي يكون عادة مفيد ومهم للتعلم.")
+              explanation: enforceTunisianLexicon("الإجابة الأولى صحيحة خاطر تمثل الغرض الأساسي من استعمال هذا الموضوع.")
             };
+            if (quizHints) result.hint = enforceTunisianLexicon(`الجواب موجود في الخيار الأول - ابحث على كلمة تبدأ بـ "م" وتخص التعلم.`);
+            return result;
           } else if (type === 'mcma') {
             const baseOptions = [
               enforceTunisianLexicon(`معلومة مهمة`),
@@ -434,42 +495,55 @@ ${contextSnippets.map((t,i)=>`[${i+1}] ${t}`).join('\n\n')}
               enforceTunisianLexicon("معلومة عامة"),
               enforceTunisianLexicon("معلومة أخرى")
             ];
-            return {
+            // Generate random correctIndices (1-3 correct answers out of aCount)
+            const numCorrect = Math.max(1, Math.min(aCount - 1, Math.floor(Math.random() * 3) + 1));
+            const correctIndices = [];
+            while (correctIndices.length < numCorrect) {
+              const idx = Math.floor(Math.random() * aCount);
+              if (!correctIndices.includes(idx)) correctIndices.push(idx);
+            }
+            const result = {
               type: 'mcma',
               question: enforceTunisianLexicon(`سؤال ${questionNum}: أشنية من هذول صحيحة حول "${subject}"؟`),
               options: baseOptions.slice(0, aCount),
-              correctIndices: [0, 1].filter(i => i < aCount),
-              explanation: enforceTunisianLexicon("الخيارين الأول والثاني صحاح خاطر المعلومات المهمة والإضافية تكون مفيدة في التعلم.")
+              correctIndices: correctIndices.sort(),
+              explanation: enforceTunisianLexicon(`الخيارات الصحيحة هي: ${correctIndices.map(i => `الخيار ${i+1}`).join(' و')} خاطر تتناسب مع الموضوع المطلوب.`)
             };
+            if (quizHints) result.hint = enforceTunisianLexicon(`اختار الخيارات إلي فيها كلمات "مهمة" و "إضافية" - هذول عادة يكونوا صحاح في أي موضوع تعليمي.`);
+            return result;
           } else if (type === 'tf') {
-            return {
+            const result = {
               type: 'tf',
               question: enforceTunisianLexicon(`سؤال ${questionNum}: "${subject}" موضوع مهم؟`),
               options: ["صحيح", "غلط"],
               correctIndex: 0,
               explanation: enforceTunisianLexicon("صحيح خاطر أي موضوع تعليمي يكون عادة مهم للفهم والتعلم.")
             };
+            if (quizHints) result.hint = enforceTunisianLexicon("فكر: هل التعلم مهم؟ لو كان الجواب نعم، اختار \"صحيح\".");
+            return result;
           } else if (type === 'fitb') {
-            return {
+            const result = {
               type: 'fitb',
               question: enforceTunisianLexicon(`سؤال ${questionNum}: الموضوع متاعنا هو ___`),
               answerText: enforceTunisianLexicon(subject.slice(0, 50)),
               acceptableAnswers: [enforceTunisianLexicon(subject.slice(0, 50))],
               explanation: enforceTunisianLexicon(`الجواب الصحيح هو "${subject.slice(0, 50)}" خاطر هذا هو الموضوع إلي قاعد نتناقش فيه.`)
             };
+            if (quizHints) result.hint = enforceTunisianLexicon(`الجواب يبدأ بأول حرف من "${subject}" وله نفس عدد الحروف (${subject.length} حرف)`);
+            return result;
           } else {
             // Default MCQ fallback
             return {
               type: 'mcq',
-              question: enforceTunisianLexicon(`سؤال ${questionNum}: شنوة رايك في "${subject}"؟`),
+              question: enforceTunisianLexicon(`سؤال ${questionNum}: شنوة الغرض من استعمال "${subject}"؟`),
               options: [
-                enforceTunisianLexicon(`موضوع مهم ومفيد`),
-                enforceTunisianLexicon("الإجابة هاذي مغلوطة"),
-                enforceTunisianLexicon("ما عندهاش علاقة مباشرة"),
-                enforceTunisianLexicon("اختيار تجريبي")
+                enforceTunisianLexicon(`غرض تعليمي ومهم`),
+                enforceTunisianLexicon("غرض غير واضح"),
+                enforceTunisianLexicon("ما لهوش غرض محدد"),
+                enforceTunisianLexicon("غرض تجريبي")
               ],
               correctIndex: 0,
-              explanation: enforceTunisianLexicon("الإجابة الأولى صحيحة خاطر أي موضوع تعليمي يكون عادة مفيد ومهم للتعلم.")
+              explanation: enforceTunisianLexicon("الإجابة الأولى صحيحة خاطر أي موضوع تعليمي عندو غرض واضح ومهم.")
             };
           }
         };
