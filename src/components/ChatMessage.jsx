@@ -8,10 +8,25 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
   // Per-message toggle for including citations in PDF
   const [includeCitations, setIncludeCitations] = useState(true)
   // Quiz UI state
-  const [quizSelections, setQuizSelections] = useState(() => (message?.isQuiz && Array.isArray(message.quiz) ? Array(message.quiz.length).fill(null) : []))
+  const [quizSelections, setQuizSelections] = useState([])
   const [quizRevealed, setQuizRevealed] = useState(false)
   // Quiz confirm params state
   const [selDifficulties, setSelDifficulties] = useState(['medium']) // easy, medium, hard
+  const [selTypes, setSelTypes] = useState(['mcq']) // mcq, mcma, tf, fitb
+
+  // Initialize selections when a quiz arrives
+  React.useEffect(() => {
+    if (message?.isQuiz && Array.isArray(message.quiz)) {
+      const init = message.quiz.map((q) => {
+        const t = String(q.type || 'mcq').toLowerCase()
+        if (t === 'mcma') return []
+        if (t === 'fitb') return ''
+        return null // mcq/tf
+      })
+      setQuizSelections(init)
+      setQuizRevealed(false)
+    }
+  }, [message?.isQuiz, Array.isArray(message?.quiz) ? message.quiz.length : 0])
   
   const formatTime = (date) => {
     return date.toLocaleTimeString('ar-TN', { 
@@ -243,56 +258,125 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
         </ReactMarkdown>
   ) : (
           <div className="quiz-block">
-            {Array.isArray(message.quiz) && message.quiz.map((q, qi) => (
-              <div key={qi} className="mb-3 p-2 border rounded">
-                <div className="fw-bold mb-2">{qi + 1}. {q.question}</div>
-                <div className="d-flex flex-column gap-2">
-                  {q.options.map((opt, oi) => {
-                    const selected = quizSelections[qi] === oi
-                    const isCorrect = q.correctIndex === oi
-                    const show = quizRevealed
-                    const bg = show
-                      ? (isCorrect ? 'rgba(25,135,84,0.15)' : (selected ? 'rgba(220,53,69,0.15)' : 'transparent'))
-                      : (selected ? 'rgba(13,110,253,0.12)' : 'transparent')
-                    const border = show
-                      ? (isCorrect ? '1px solid #198754' : (selected ? '1px solid #dc3545' : '1px solid #dee2e6'))
-                      : (selected ? '1px solid #0d6efd' : '1px solid #dee2e6')
-                    return (
-                      <button
-                        key={oi}
-                        type="button"
-                        className="btn text-start"
-                        style={{ background: bg, border, borderRadius: 8 }}
-                        onClick={() => {
+            {Array.isArray(message.quiz) && message.quiz.map((q, qi) => {
+              const type = String(q.type || 'mcq').toLowerCase()
+              return (
+                <div key={qi} className="mb-3 p-2 border rounded">
+                  <div className="fw-bold mb-2">{qi + 1}. {q.question}</div>
+                  {type === 'fitb' ? (
+                    <div className="d-flex align-items-center gap-2">
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="اكتب الإجابة"
+                        value={quizSelections[qi] ?? ''}
+                        onChange={(e) => {
                           if (quizRevealed) return
                           const next = [...quizSelections]
-                          next[qi] = oi
+                          next[qi] = e.target.value
                           setQuizSelections(next)
                         }}
-                      >
-                        <div className="d-flex align-items-center">
-                          <input
-                            type="radio"
-                            name={`q-${message.id}-${qi}`}
-                            checked={selected}
-                            readOnly
-                            className="me-2"
-                          />
-                          <span>{opt}</span>
-                        </div>
-                      </button>
-                    )
-                  })}
+                        style={quizRevealed ? {
+                          borderColor: (() => {
+                            const val = String(quizSelections[qi] || '').trim().toLowerCase()
+                            const ok = [String(q.answerText||'').trim().toLowerCase(), ...((q.acceptableAnswers||[]).map(s=>String(s).trim().toLowerCase()))].includes(val)
+                            return ok ? '#198754' : '#dc3545'
+                          })()
+                        } : {}}
+                      />
+                      {quizRevealed && (
+                        <small className="text-muted">الإجابة الصحيحة: <strong>{q.answerText}</strong></small>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="d-flex flex-column gap-2">
+                      {(q.options || []).map((opt, oi) => {
+                        const show = quizRevealed
+                        if (type === 'mcma') {
+                          const selectedArr = Array.isArray(quizSelections[qi]) ? quizSelections[qi] : []
+                          const selected = selectedArr.includes(oi)
+                          const isCorrect = Array.isArray(q.correctIndices) ? q.correctIndices.includes(oi) : false
+                          const bg = show
+                            ? (isCorrect ? 'rgba(25,135,84,0.15)' : (selected ? 'rgba(220,53,69,0.15)' : 'transparent'))
+                            : (selected ? 'rgba(13,110,253,0.12)' : 'transparent')
+                          const border = show
+                            ? (isCorrect ? '1px solid #198754' : (selected ? '1px solid #dc3545' : '1px solid #dee2e6'))
+                            : (selected ? '1px solid #0d6efd' : '1px solid #dee2e6')
+                          return (
+                            <button
+                              key={oi}
+                              type="button"
+                              className="btn text-start"
+                              style={{ background: bg, border, borderRadius: 8 }}
+                              onClick={() => {
+                                if (quizRevealed) return
+                                const next = [...quizSelections]
+                                const cur = Array.isArray(next[qi]) ? [...next[qi]] : []
+                                const idx = cur.indexOf(oi)
+                                if (idx >= 0) cur.splice(idx,1); else cur.push(oi)
+                                next[qi] = cur
+                                setQuizSelections(next)
+                              }}
+                            >
+                              <div className="d-flex align-items-center">
+                                <input type="checkbox" checked={selected} readOnly className="me-2" />
+                                <span>{opt}</span>
+                              </div>
+                            </button>
+                          )
+                        } else {
+                          // mcq / tf
+                          const selected = quizSelections[qi] === oi
+                          const isCorrect = q.correctIndex === oi
+                          const bg = show
+                            ? (isCorrect ? 'rgba(25,135,84,0.15)' : (selected ? 'rgba(220,53,69,0.15)' : 'transparent'))
+                            : (selected ? 'rgba(13,110,253,0.12)' : 'transparent')
+                          const border = show
+                            ? (isCorrect ? '1px solid #198754' : (selected ? '1px solid #dc3545' : '1px solid #dee2e6'))
+                            : (selected ? '1px solid #0d6efd' : '1px solid #dee2e6')
+                          return (
+                            <button
+                              key={oi}
+                              type="button"
+                              className="btn text-start"
+                              style={{ background: bg, border, borderRadius: 8 }}
+                              onClick={() => {
+                                if (quizRevealed) return
+                                const next = [...quizSelections]
+                                next[qi] = oi
+                                setQuizSelections(next)
+                              }}
+                            >
+                              <div className="d-flex align-items-center">
+                                <input type="radio" name={`q-${message.id}-${qi}`} checked={selected} readOnly className="me-2" />
+                                <span>{opt}</span>
+                              </div>
+                            </button>
+                          )
+                        }
+                      })}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              )
+            })}
             <div className="mt-3">
               {!quizRevealed ? (
                 <button
                   type="button"
                   className="btn btn-primary"
                   onClick={() => setQuizRevealed(true)}
-                  disabled={quizSelections.some((s) => s === null)}
+                  disabled={(() => {
+                    if (!Array.isArray(message.quiz)) return true
+                    for (let i=0;i<message.quiz.length;i++){
+                      const t = String(message.quiz[i].type || 'mcq').toLowerCase()
+                      const sel = quizSelections[i]
+                      if (t === 'mcma') { if (!Array.isArray(sel) || sel.length === 0) return true }
+                      else if (t === 'fitb') { if (!String(sel||'').trim()) return true }
+                      else { if (sel === null || sel === undefined) return true }
+                    }
+                    return false
+                  })()}
                 >
                   تصحيح الإجابات
                 </button>
@@ -331,16 +415,31 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                 </button>
               ))}
             </div>
+            {/* Types multi-select */}
+            <div className="d-flex align-items-center gap-2 flex-wrap">
+              <label className="form-label m-0">نوع الأسئلة</label>
+              {[{k:'mcq',l:'اختيار واحد'}, {k:'mcma',l:'اختيارات متعددة'}, {k:'tf',l:'صح/غلط'}, {k:'fitb',l:'فراغ'}].map(({k,l}) => (
+                <button
+                  key={k}
+                  type="button"
+                  className={`btn btn-sm ${selTypes.includes(k) ? 'btn-primary' : 'btn-outline-primary'}`}
+                  onClick={() => {
+                    const next = selTypes.includes(k) ? selTypes.filter(x=>x!==k) : [...selTypes, k]
+                    setSelTypes(next.length ? next : selTypes)
+                  }}
+                >{l}</button>
+              ))}
+            </div>
             <button
               type="button"
               className="btn btn-success"
               onClick={() => {
                 const questions = Math.max(5, Math.min(30, parseInt(document.getElementById(`qcount-${message.id}`).value || '5', 10)))
                 const answers = Math.max(2, Math.min(6, parseInt(document.getElementById(`acount-${message.id}`).value || '4', 10)))
-                if (!selDifficulties.length) return // At least one difficulty must be selected
-                onConfirmQuiz && onConfirmQuiz({ subject: message.quizSubject || '', questions, answers, difficulties: selDifficulties, messageId: message.id })
+                if (!selDifficulties.length || !selTypes.length) return
+                onConfirmQuiz && onConfirmQuiz({ subject: message.quizSubject || '', questions, answers, difficulties: selDifficulties, types: selTypes, messageId: message.id })
               }}
-              disabled={!selDifficulties.length}
+              disabled={!selDifficulties.length || !selTypes.length}
             >
               نعم، أنشئ الاختبار
             </button>

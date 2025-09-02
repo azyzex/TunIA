@@ -282,7 +282,7 @@ async function readPDFFile(file) {
 
 
   // Quiz confirm handlers
-  const handleConfirmQuiz = async ({ subject, questions, answers, difficulties = ['medium'], messageId }) => {
+  const handleConfirmQuiz = async ({ subject, questions, answers, difficulties = ['medium'], types = ['mcq'], messageId }) => {
     setQuizGenerating(true)
     try {
       const res = await fetch('http://localhost:3001/api/chat', {
@@ -295,6 +295,7 @@ async function readPDFFile(file) {
           quizQuestions: questions,
           quizOptions: answers,
           quizDifficulties: difficulties,
+          quizTypes: types,
           webSearch: true,
           fetchUrl: true
         })

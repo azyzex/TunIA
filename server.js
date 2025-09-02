@@ -162,7 +162,7 @@ const DARIJA_STYLE_GUIDE = `
 `;
 
 app.post("/api/chat", async (req, res) => {
-  const { message, history, pdfText, webSearch, image, pdfExport, quizMode, quizQuestions, quizOptions, quizDifficulties } =
+  const { message, history, pdfText, webSearch, image, pdfExport, quizMode, quizQuestions, quizOptions, quizDifficulties, quizTypes } =
     req.body || {};
   const { fetchUrl } = req.body || {};
   // Language request detection (explicit instructions override Darija)
@@ -292,14 +292,31 @@ app.post("/api/chat", async (req, res) => {
 ${DARIJA_STYLE_GUIDE}
 
 بدون أي شرح إضافي، رجّع JSON نقي فقط (Array) فيه ${qCount} أسئلة حول الموضوع التالي، كل عنصر عندو:
-- question: نص السؤال (بالدارجة التونسية، واضح وقصير)
-- options: Array من ${aCount} خيارات نصية، مختلفة وواضحة
-- correctIndex: رقم صحيح من 0 إلى ${aCount - 1} يدل على الإجابة الصحيحة
+
+أنواع الأسئلة المطلوبة: ${Array.isArray(quizTypes) && quizTypes.length > 0 ? quizTypes.map(t => {
+  if (t === 'mcq') return 'اختيار واحد';
+  if (t === 'mcma') return 'اختيارات متعددة';
+  if (t === 'tf') return 'صح/غلط';
+  if (t === 'fitb') return 'فراغ';
+  return t;
+}).join('، ') : 'اختيار واحد'}
 
 مستوى الصعوبة المطلوب: ${Array.isArray(quizDifficulties) && quizDifficulties.length > 0 ? quizDifficulties.map(d => d === 'easy' ? 'سهل' : d === 'medium' ? 'متوسط' : 'صعب').join('، ') : 'متوسط'}
 
-مثال للعنصر:
-{ "question": "شنوّة ...؟", "options": ["...","...","...","..."], "correctIndex": 1 }
+لكل سؤال:
+- type: نوع السؤال ("mcq" للاختيار الواحد، "mcma" للاختيارات المتعددة، "tf" لصح/غلط، "fitb" للفراغ)
+- question: نص السؤال (بالدارجة التونسية، واضح وقصير)
+- options: Array من الخيارات (للـ mcq/mcma/tf فقط، ${aCount} خيارات للـ mcq/mcma، خيارين "صح"/"غلط" للـ tf)
+- correctIndex: رقم الإجابة الصحيحة للـ mcq/tf (0-based index)
+- correctIndices: Array من أرقام الإجابات الصحيحة للـ mcma
+- answerText: النص الصحيح للـ fitb
+- acceptableAnswers: Array من الإجابات المقبولة للـ fitb (اختياري)
+
+أمثلة:
+MCQ: { "type": "mcq", "question": "شنوّة ...؟", "options": ["...","...","...","..."], "correctIndex": 1 }
+MCMA: { "type": "mcma", "question": "أشنية من هذول ...؟", "options": ["...","...","...","..."], "correctIndices": [0,2] }
+TF: { "type": "tf", "question": "... صحيح؟", "options": ["صح","غلط"], "correctIndex": 0 }
+FITB: { "type": "fitb", "question": "... هو ___", "answerText": "الجواب", "acceptableAnswers": ["الجواب","جواب"] }
 
 الموضوع: ${subject}
 ${contextSnippets.length ? `
@@ -340,30 +357,112 @@ ${contextSnippets.map((t,i)=>`[${i+1}] ${t}`).join('\n\n')}
       const sanitizeQuiz = (arr) => {
         if (!Array.isArray(arr)) return [];
         return arr
-          .filter((q) => q && typeof q.question === "string" && Array.isArray(q.options))
+          .filter((q) => q && typeof q.question === "string")
           .map((q) => {
-            let opts = q.options.slice(0, 4).map((o) => String(o).trim()).filter(Boolean);
-            while (opts.length < 4) opts.push("خيار إضافي");
-            let idx = Number.isInteger(q.correctIndex) ? q.correctIndex : 0;
-            if (idx < 0 || idx > 3) idx = 0;
-            return { question: enforceTunisianLexicon(q.question).slice(0, 200), options: opts.map(enforceTunisianLexicon), correctIndex: idx };
+            const type = String(q.type || 'mcq').toLowerCase();
+            const question = enforceTunisianLexicon(q.question).slice(0, 200);
+            
+            if (type === 'mcq') {
+              if (!Array.isArray(q.options)) return null;
+              let opts = q.options.slice(0, aCount).map((o) => String(o).trim()).filter(Boolean);
+              while (opts.length < aCount) opts.push("خيار إضافي");
+              let idx = Number.isInteger(q.correctIndex) ? q.correctIndex : 0;
+              if (idx < 0 || idx >= opts.length) idx = 0;
+              return { type: 'mcq', question, options: opts.map(enforceTunisianLexicon), correctIndex: idx };
+            }
+            else if (type === 'mcma') {
+              if (!Array.isArray(q.options)) return null;
+              let opts = q.options.slice(0, aCount).map((o) => String(o).trim()).filter(Boolean);
+              while (opts.length < aCount) opts.push("خيار إضافي");
+              let indices = Array.isArray(q.correctIndices) ? q.correctIndices.filter(i => Number.isInteger(i) && i >= 0 && i < opts.length) : [0];
+              if (!indices.length) indices = [0];
+              return { type: 'mcma', question, options: opts.map(enforceTunisianLexicon), correctIndices: indices };
+            }
+            else if (type === 'tf') {
+              const opts = ["صح", "غلط"];
+              let idx = Number.isInteger(q.correctIndex) ? q.correctIndex : 0;
+              if (idx < 0 || idx > 1) idx = 0;
+              return { type: 'tf', question, options: opts, correctIndex: idx };
+            }
+            else if (type === 'fitb') {
+              const answerText = String(q.answerText || '').trim() || 'الجواب';
+              const acceptableAnswers = Array.isArray(q.acceptableAnswers) 
+                ? q.acceptableAnswers.map(a => String(a).trim()).filter(Boolean)
+                : [answerText];
+              return { type: 'fitb', question, answerText: enforceTunisianLexicon(answerText), acceptableAnswers: acceptableAnswers.map(enforceTunisianLexicon) };
+            }
+            else {
+              // Default to mcq for unknown types
+              const opts = Array.isArray(q.options) ? q.options.slice(0, aCount).map((o) => String(o).trim()).filter(Boolean) : [];
+              while (opts.length < aCount) opts.push("خيار إضافي");
+              return { type: 'mcq', question, options: opts.map(enforceTunisianLexicon), correctIndex: 0 };
+            }
           })
-          .slice(0, 5);
+          .filter(Boolean)
+          .slice(0, qCount);
       };
       let finalQuiz = sanitizeQuiz(quiz);
       if (finalQuiz.length < 3) {
-        // Fallback simple quiz if model failed
-        const baseQ = (i) => ({
-          question: enforceTunisianLexicon(`سؤال ${i + 1}: شنوة رايك في "${subject}"؟`),
-          options: [
-            enforceTunisianLexicon(`موضوع مهم ومفيد`),
-            enforceTunisianLexicon("الإجابة هاذي مغلوطة"),
-            enforceTunisianLexicon("ما عندهاش علاقة مباشرة"),
-            enforceTunisianLexicon("اختيار تجريبي")
-          ],
-          correctIndex: 0,
-        });
-        finalQuiz = [0,1,2,3,4].map(baseQ);
+        // Fallback simple quiz if model failed - cycle through selected types
+        const selectedTypes = Array.isArray(quizTypes) && quizTypes.length > 0 ? quizTypes : ['mcq'];
+        const baseQ = (i) => {
+          const type = selectedTypes[i % selectedTypes.length];
+          const questionNum = i + 1;
+          
+          if (type === 'mcq') {
+            return {
+              type: 'mcq',
+              question: enforceTunisianLexicon(`سؤال ${questionNum}: شنوة رايك في "${subject}"؟`),
+              options: [
+                enforceTunisianLexicon(`موضوع مهم ومفيد`),
+                enforceTunisianLexicon("الإجابة هاذي مغلوطة"),
+                enforceTunisianLexicon("ما عندهاش علاقة مباشرة"),
+                enforceTunisianLexicon("اختيار تجريبي")
+              ],
+              correctIndex: 0,
+            };
+          } else if (type === 'mcma') {
+            return {
+              type: 'mcma',
+              question: enforceTunisianLexicon(`سؤال ${questionNum}: أشنية من هذول صحيحة حول "${subject}"؟`),
+              options: [
+                enforceTunisianLexicon(`معلومة مهمة`),
+                enforceTunisianLexicon("معلومة إضافية"),
+                enforceTunisianLexicon("معلومة مغلوطة"),
+                enforceTunisianLexicon("معلومة عامة")
+              ],
+              correctIndices: [0, 1],
+            };
+          } else if (type === 'tf') {
+            return {
+              type: 'tf',
+              question: enforceTunisianLexicon(`سؤال ${questionNum}: "${subject}" موضوع مهم؟`),
+              options: ["صح", "غلط"],
+              correctIndex: 0,
+            };
+          } else if (type === 'fitb') {
+            return {
+              type: 'fitb',
+              question: enforceTunisianLexicon(`سؤال ${questionNum}: الموضوع متاعنا هو ___`),
+              answerText: enforceTunisianLexicon(subject.slice(0, 50)),
+              acceptableAnswers: [enforceTunisianLexicon(subject.slice(0, 50))]
+            };
+          } else {
+            // Default MCQ fallback
+            return {
+              type: 'mcq',
+              question: enforceTunisianLexicon(`سؤال ${questionNum}: شنوة رايك في "${subject}"؟`),
+              options: [
+                enforceTunisianLexicon(`موضوع مهم ومفيد`),
+                enforceTunisianLexicon("الإجابة هاذي مغلوطة"),
+                enforceTunisianLexicon("ما عندهاش علاقة مباشرة"),
+                enforceTunisianLexicon("اختيار تجريبي")
+              ],
+              correctIndex: 0,
+            };
+          }
+        };
+        finalQuiz = Array.from({length: qCount}, (_, i) => baseQ(i));
       }
       return res.json({ isQuiz: true, quiz: finalQuiz });
     }
