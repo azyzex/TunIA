@@ -13,6 +13,11 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
   // Quiz confirm params state
   const [selDifficulties, setSelDifficulties] = useState(['medium']) // easy, medium, hard
   const [selTypes, setSelTypes] = useState(['mcq']) // mcq, mcma, tf, fitb
+  const [timerEnabled, setTimerEnabled] = useState(false)
+  const [timerMinutes, setTimerMinutes] = useState(10)
+  // Timer state for active quiz
+  const [timeRemaining, setTimeRemaining] = useState(null)
+  const [timerExpired, setTimerExpired] = useState(false)
 
   // Initialize selections when a quiz arrives
   React.useEffect(() => {
@@ -27,12 +32,40 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
       setQuizRevealed(false)
     }
   }, [message?.isQuiz, Array.isArray(message?.quiz) ? message.quiz.length : 0])
+
+  // Timer logic for quiz
+  React.useEffect(() => {
+    if (message?.isQuiz && message.timer && !quizRevealed && !timerExpired) {
+      const totalSeconds = message.timer * 60
+      setTimeRemaining(totalSeconds)
+      
+      const interval = setInterval(() => {
+        setTimeRemaining(prev => {
+          if (prev <= 1) {
+            setTimerExpired(true)
+            setQuizRevealed(true)
+            clearInterval(interval)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+      
+      return () => clearInterval(interval)
+    }
+  }, [message?.isQuiz, message?.timer, quizRevealed, timerExpired])
   
   const formatTime = (date) => {
     return date.toLocaleTimeString('ar-TN', { 
       hour: '2-digit', 
       minute: '2-digit' 
     })
+  }
+
+  const formatTimer = (seconds) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
   const copyToClipboard = async (text) => {
@@ -82,9 +115,34 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
   if (!message) return null
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+    <>
+      {/* Floating Timer */}
+      {message?.isQuiz && message.timer && timeRemaining !== null && !quizRevealed && (
+        <div 
+          className="position-fixed bg-warning text-dark px-3 py-2 rounded shadow-lg"
+          style={{ 
+            top: '80px', 
+            right: '20px', 
+            zIndex: 1040,
+            fontWeight: 'bold',
+            fontSize: '1.1rem'
+          }}
+        >
+          <div className="d-flex align-items-center gap-2">
+            <i className="fas fa-clock" style={{ fontSize: '1rem' }}></i>
+            <span>{formatTimer(timeRemaining)}</span>
+          </div>
+          {timerExpired && (
+            <div className="small text-center mt-1" style={{ fontSize: '0.8rem' }}>
+              انتهى الوقت!
+            </div>
+          )}
+        </div>
+      )}
+      
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
       className={`d-flex mb-3 ${isUser ? 'justify-content-end' : 'justify-content-start'}`}
     >
@@ -270,8 +328,9 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                         className="form-control"
                         placeholder="اكتب الإجابة"
                         value={quizSelections[qi] ?? ''}
+                        disabled={quizRevealed || (message.timer && timeRemaining <= 0)}
                         onChange={(e) => {
-                          if (quizRevealed) return
+                          if (quizRevealed || (message.timer && timeRemaining <= 0)) return
                           const next = [...quizSelections]
                           next[qi] = e.target.value
                           setQuizSelections(next)
@@ -309,7 +368,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                               className="btn text-start"
                               style={{ background: bg, border, borderRadius: 8 }}
                               onClick={() => {
-                                if (quizRevealed) return
+                                if (quizRevealed || (message.timer && timeRemaining <= 0)) return
                                 const next = [...quizSelections]
                                 const cur = Array.isArray(next[qi]) ? [...next[qi]] : []
                                 const idx = cur.indexOf(oi)
@@ -341,7 +400,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                               className="btn text-start"
                               style={{ background: bg, border, borderRadius: 8 }}
                               onClick={() => {
-                                if (quizRevealed) return
+                                if (quizRevealed || (message.timer && timeRemaining <= 0)) return
                                 const next = [...quizSelections]
                                 next[qi] = oi
                                 setQuizSelections(next)
@@ -368,6 +427,8 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                   onClick={() => setQuizRevealed(true)}
                   disabled={(() => {
                     if (!Array.isArray(message.quiz)) return true
+                    // If timer is active, don't allow manual reveal unless time expired
+                    if (message.timer && timeRemaining > 0) return true
                     for (let i=0;i<message.quiz.length;i++){
                       const t = String(message.quiz[i].type || 'mcq').toLowerCase()
                       const sel = quizSelections[i]
@@ -381,7 +442,12 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                   تصحيح الإجابات
                 </button>
               ) : (
-                <div className="alert alert-info">تم إظهار الإجابات الصحيحة باللون الأخضر والخاطئة بالأحمر.</div>
+                <div className="alert alert-info">
+                  {timerExpired ? 
+                    'انتهى الوقت! تم إظهار الإجابات الصحيحة باللون الأخضر والخاطئة بالأحمر.' :
+                    'تم إظهار الإجابات الصحيحة باللون الأخضر والخاطئة بالأحمر.'
+                  }
+                </div>
               )}
             </div>
           </div>
@@ -430,6 +496,35 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                 >{l}</button>
               ))}
             </div>
+            {/* Timer controls */}
+            <div className="d-flex align-items-center gap-2 flex-wrap">
+              <div className="form-check form-switch">
+                <input
+                  className="form-check-input"
+                  type="checkbox"
+                  id={`timer-switch-${message.id}`}
+                  checked={timerEnabled}
+                  onChange={(e) => setTimerEnabled(e.target.checked)}
+                />
+                <label className="form-check-label" htmlFor={`timer-switch-${message.id}`}>
+                  مؤقت
+                </label>
+              </div>
+              {timerEnabled && (
+                <div className="d-flex align-items-center gap-1">
+                  <input
+                    type="number"
+                    className="form-control"
+                    value={timerMinutes}
+                    onChange={(e) => setTimerMinutes(Math.max(1, Math.min(60, parseInt(e.target.value || '10', 10))))}
+                    min={1}
+                    max={60}
+                    style={{ width: 70 }}
+                  />
+                  <small className="text-muted">دقيقة</small>
+                </div>
+              )}
+            </div>
             <button
               type="button"
               className="btn btn-success"
@@ -437,7 +532,15 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                 const questions = Math.max(5, Math.min(30, parseInt(document.getElementById(`qcount-${message.id}`).value || '5', 10)))
                 const answers = Math.max(2, Math.min(6, parseInt(document.getElementById(`acount-${message.id}`).value || '4', 10)))
                 if (!selDifficulties.length || !selTypes.length) return
-                onConfirmQuiz && onConfirmQuiz({ subject: message.quizSubject || '', questions, answers, difficulties: selDifficulties, types: selTypes, messageId: message.id })
+                onConfirmQuiz && onConfirmQuiz({ 
+                  subject: message.quizSubject || '', 
+                  questions, 
+                  answers, 
+                  difficulties: selDifficulties, 
+                  types: selTypes, 
+                  timer: timerEnabled ? timerMinutes : null,
+                  messageId: message.id 
+                })
               }}
               disabled={!selDifficulties.length || !selTypes.length}
             >
@@ -537,6 +640,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
   )}
       </div>
     </motion.div>
+    </>
   )
 }
 
