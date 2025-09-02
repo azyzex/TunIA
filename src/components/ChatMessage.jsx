@@ -416,6 +416,13 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                       })}
                     </div>
                   )}
+                  {/* Show explanation after quiz is revealed */}
+                  {quizRevealed && q.explanation && (
+                    <div className="mt-2 p-2 rounded bg-light border-start border-primary border-3">
+                      <small className="text-muted fw-bold">الشرح:</small>
+                      <div className="small text-dark mt-1">{q.explanation}</div>
+                    </div>
+                  )}
                 </div>
               )
             })}

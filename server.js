@@ -311,12 +311,13 @@ ${DARIJA_STYLE_GUIDE}
 - correctIndices: Array من أرقام الإجابات الصحيحة للـ mcma
 - answerText: النص الصحيح للـ fitb
 - acceptableAnswers: Array من الإجابات المقبولة للـ fitb (اختياري)
+- explanation: شرح مفصل ليه الإجابة الصحيحة صحيحة والباقي غلط (بالدارجة التونسية)
 
 أمثلة:
-MCQ: { "type": "mcq", "question": "شنوّة ...؟", "options": ["...","...","...","..."], "correctIndex": 1 }
-MCMA: { "type": "mcma", "question": "أشنية من هذول ...؟", "options": ["...","...","...","..."], "correctIndices": [0,2] }
-TF: { "type": "tf", "question": "... صحيح؟", "options": ["صح","غلط"], "correctIndex": 0 }
-FITB: { "type": "fitb", "question": "... هو ___", "answerText": "الجواب", "acceptableAnswers": ["الجواب","جواب"] }
+MCQ: { "type": "mcq", "question": "شنوّة ...؟", "options": ["...","...","...","..."], "correctIndex": 1, "explanation": "الإجابة الثانية صحيحة خاطر..." }
+MCMA: { "type": "mcma", "question": "أشنية من هذول ...؟", "options": ["...","...","...","..."], "correctIndices": [0,2], "explanation": "الخيارين الأول والثالث صحاح خاطر..." }
+TF: { "type": "tf", "question": "... صحيح؟", "options": ["صح","غلط"], "correctIndex": 0, "explanation": "صحيح خاطر..." }
+FITB: { "type": "fitb", "question": "... هو ___", "answerText": "الجواب", "acceptableAnswers": ["الجواب","جواب"], "explanation": "الجواب الصحيح هو 'الجواب' خاطر..." }
 
 الموضوع: ${subject}
 ${contextSnippets.length ? `
@@ -331,7 +332,7 @@ ${contextSnippets.map((t,i)=>`[${i+1}] ${t}`).join('\n\n')}
         const response = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contents: [ { role: "user", parts: [{ text: QUIZ_INSTR }] } ], generationConfig: { temperature: 0.6, maxOutputTokens: 1024 } }),
+          body: JSON.stringify({ contents: [ { role: "user", parts: [{ text: QUIZ_INSTR }] } ], generationConfig: { temperature: 0.6, maxOutputTokens: 2048 } }),
         });
         const textBody = await response.text();
         if (response.ok) {
@@ -361,6 +362,7 @@ ${contextSnippets.map((t,i)=>`[${i+1}] ${t}`).join('\n\n')}
           .map((q) => {
             const type = String(q.type || 'mcq').toLowerCase();
             const question = enforceTunisianLexicon(q.question).slice(0, 200);
+            const explanation = enforceTunisianLexicon(String(q.explanation || 'لم يتم توفير شرح لهذا السؤال.').trim()).slice(0, 500);
             
             if (type === 'mcq') {
               if (!Array.isArray(q.options)) return null;
@@ -368,7 +370,7 @@ ${contextSnippets.map((t,i)=>`[${i+1}] ${t}`).join('\n\n')}
               while (opts.length < aCount) opts.push("خيار إضافي");
               let idx = Number.isInteger(q.correctIndex) ? q.correctIndex : 0;
               if (idx < 0 || idx >= opts.length) idx = 0;
-              return { type: 'mcq', question, options: opts.map(enforceTunisianLexicon), correctIndex: idx };
+              return { type: 'mcq', question, options: opts.map(enforceTunisianLexicon), correctIndex: idx, explanation };
             }
             else if (type === 'mcma') {
               if (!Array.isArray(q.options)) return null;
@@ -376,26 +378,26 @@ ${contextSnippets.map((t,i)=>`[${i+1}] ${t}`).join('\n\n')}
               while (opts.length < aCount) opts.push("خيار إضافي");
               let indices = Array.isArray(q.correctIndices) ? q.correctIndices.filter(i => Number.isInteger(i) && i >= 0 && i < opts.length) : [0];
               if (!indices.length) indices = [0];
-              return { type: 'mcma', question, options: opts.map(enforceTunisianLexicon), correctIndices: indices };
+              return { type: 'mcma', question, options: opts.map(enforceTunisianLexicon), correctIndices: indices, explanation };
             }
             else if (type === 'tf') {
               const opts = ["صح", "غلط"];
               let idx = Number.isInteger(q.correctIndex) ? q.correctIndex : 0;
               if (idx < 0 || idx > 1) idx = 0;
-              return { type: 'tf', question, options: opts, correctIndex: idx };
+              return { type: 'tf', question, options: opts, correctIndex: idx, explanation };
             }
             else if (type === 'fitb') {
               const answerText = String(q.answerText || '').trim() || 'الجواب';
               const acceptableAnswers = Array.isArray(q.acceptableAnswers) 
                 ? q.acceptableAnswers.map(a => String(a).trim()).filter(Boolean)
                 : [answerText];
-              return { type: 'fitb', question, answerText: enforceTunisianLexicon(answerText), acceptableAnswers: acceptableAnswers.map(enforceTunisianLexicon) };
+              return { type: 'fitb', question, answerText: enforceTunisianLexicon(answerText), acceptableAnswers: acceptableAnswers.map(enforceTunisianLexicon), explanation };
             }
             else {
               // Default to mcq for unknown types
               const opts = Array.isArray(q.options) ? q.options.slice(0, aCount).map((o) => String(o).trim()).filter(Boolean) : [];
               while (opts.length < aCount) opts.push("خيار إضافي");
-              return { type: 'mcq', question, options: opts.map(enforceTunisianLexicon), correctIndex: 0 };
+              return { type: 'mcq', question, options: opts.map(enforceTunisianLexicon), correctIndex: 0, explanation };
             }
           })
           .filter(Boolean)
@@ -420,6 +422,7 @@ ${contextSnippets.map((t,i)=>`[${i+1}] ${t}`).join('\n\n')}
                 enforceTunisianLexicon("اختيار تجريبي")
               ],
               correctIndex: 0,
+              explanation: enforceTunisianLexicon("الإجابة الأولى صحيحة خاطر أي موضوع تعليمي يكون عادة مفيد ومهم للتعلم.")
             };
           } else if (type === 'mcma') {
             return {
@@ -432,6 +435,7 @@ ${contextSnippets.map((t,i)=>`[${i+1}] ${t}`).join('\n\n')}
                 enforceTunisianLexicon("معلومة عامة")
               ],
               correctIndices: [0, 1],
+              explanation: enforceTunisianLexicon("الخيارين الأول والثاني صحاح خاطر المعلومات المهمة والإضافية تكون مفيدة في التعلم.")
             };
           } else if (type === 'tf') {
             return {
@@ -439,13 +443,15 @@ ${contextSnippets.map((t,i)=>`[${i+1}] ${t}`).join('\n\n')}
               question: enforceTunisianLexicon(`سؤال ${questionNum}: "${subject}" موضوع مهم؟`),
               options: ["صح", "غلط"],
               correctIndex: 0,
+              explanation: enforceTunisianLexicon("صحيح خاطر أي موضوع تعليمي يكون عادة مهم للفهم والتعلم.")
             };
           } else if (type === 'fitb') {
             return {
               type: 'fitb',
               question: enforceTunisianLexicon(`سؤال ${questionNum}: الموضوع متاعنا هو ___`),
               answerText: enforceTunisianLexicon(subject.slice(0, 50)),
-              acceptableAnswers: [enforceTunisianLexicon(subject.slice(0, 50))]
+              acceptableAnswers: [enforceTunisianLexicon(subject.slice(0, 50))],
+              explanation: enforceTunisianLexicon(`الجواب الصحيح هو "${subject.slice(0, 50)}" خاطر هذا هو الموضوع إلي قاعد نتناقش فيه.`)
             };
           } else {
             // Default MCQ fallback
@@ -459,6 +465,7 @@ ${contextSnippets.map((t,i)=>`[${i+1}] ${t}`).join('\n\n')}
                 enforceTunisianLexicon("اختيار تجريبي")
               ],
               correctIndex: 0,
+              explanation: enforceTunisianLexicon("الإجابة الأولى صحيحة خاطر أي موضوع تعليمي يكون عادة مفيد ومهم للتعلم.")
             };
           }
         };
