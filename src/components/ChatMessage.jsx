@@ -10,13 +10,13 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
   // Quiz UI state
   const [quizSelections, setQuizSelections] = useState([])
   const [quizRevealed, setQuizRevealed] = useState(false)
+  const [quizScore, setQuizScore] = useState(null)
   // Quiz confirm params state
   const [selDifficulties, setSelDifficulties] = useState(['medium']) // easy, medium, hard
   const [selTypes, setSelTypes] = useState(['mcq']) // mcq, mcma, tf, fitb
   const [timerEnabled, setTimerEnabled] = useState(false)
   const [timerMinutes, setTimerMinutes] = useState(10)
   const [hintsEnabled, setHintsEnabled] = useState(false)
-  const [instantFeedback, setInstantFeedback] = useState(true) // true = immediate, false = at end
   // Input validation state
   const [questionsCount, setQuestionsCount] = useState(message?.quizDefaultQuestions || 5)
   const [answersCount, setAnswersCount] = useState(message?.quizDefaultAnswers || 4)
@@ -25,8 +25,6 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
   const [timerExpired, setTimerExpired] = useState(false)
   // Hints state for individual questions
   const [hintsVisible, setHintsVisible] = useState([])
-  // Instant feedback state - track which questions have been answered
-  const [answeredQuestions, setAnsweredQuestions] = useState([])
 
   // Initialize selections when a quiz arrives
   React.useEffect(() => {
@@ -39,6 +37,9 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
       })
       setQuizSelections(init)
       setQuizRevealed(false)
+      setQuizScore(null)
+      setTimerExpired(false)
+      setTimeRemaining(null)
       // Initialize hints visibility (all hidden by default)
       setHintsVisible(Array(message.quiz.length).fill(false))
     }
@@ -55,6 +56,11 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
           if (prev <= 1) {
             setTimerExpired(true)
             setQuizRevealed(true)
+            // Calculate score when timer expires
+            setTimeout(() => {
+              const score = calculateScore()
+              setQuizScore(score)
+            }, 100)
             clearInterval(interval)
             return 0
           }
@@ -92,6 +98,60 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
       textArea.select()
       document.execCommand('copy')
       document.body.removeChild(textArea)
+    }
+  }
+
+  // Calculate quiz score
+  const calculateScore = () => {
+    if (!Array.isArray(message?.quiz)) return null
+    
+    let correctAnswers = 0
+    const totalQuestions = message.quiz.length
+    const results = []
+    
+    for (let i = 0; i < message.quiz.length; i++) {
+      const question = message.quiz[i]
+      const userSelection = quizSelections[i]
+      const type = String(question.type || 'mcq').toLowerCase()
+      
+      let isCorrect = false
+      
+      if (type === 'mcma') {
+        // Multiple choice multiple answer
+        const correctIndices = Array.isArray(question.correctIndices) ? question.correctIndices : []
+        const userIndices = Array.isArray(userSelection) ? userSelection : []
+        
+        // Check if arrays are equal (same length and same elements)
+        isCorrect = correctIndices.length === userIndices.length && 
+                   correctIndices.every(idx => userIndices.includes(idx))
+      } else if (type === 'fitb') {
+        // Fill in the blank - case insensitive comparison
+        const correctAnswer = String(question.correctAnswer || '').toLowerCase().trim()
+        const userAnswer = String(userSelection || '').toLowerCase().trim()
+        isCorrect = correctAnswer === userAnswer
+      } else {
+        // MCQ or True/False
+        isCorrect = question.correctIndex === userSelection
+      }
+      
+      if (isCorrect) correctAnswers++
+      
+      results.push({
+        questionIndex: i,
+        isCorrect,
+        userAnswer: userSelection,
+        correctAnswer: type === 'mcma' ? question.correctIndices : 
+                      type === 'fitb' ? question.correctAnswer : question.correctIndex
+      })
+    }
+    
+    const percentage = Math.round((correctAnswers / totalQuestions) * 100)
+    
+    return {
+      correct: correctAnswers,
+      total: totalQuestions,
+      percentage,
+      results
     }
   }
 
@@ -366,16 +426,8 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                           const next = [...quizSelections]
                           next[qi] = e.target.value
                           setQuizSelections(next)
-                          // Mark question as answered for instant feedback when user starts typing
-                          if (message.instantFeedback && e.target.value.trim()) {
-                            const nextAnswered = [...answeredQuestions]
-                            if (!nextAnswered.includes(qi)) {
-                              nextAnswered.push(qi)
-                              setAnsweredQuestions(nextAnswered)
-                            }
-                          }
                         }}
-                        style={(quizRevealed || (message.instantFeedback && answeredQuestions.includes(qi))) ? {
+                        style={quizRevealed ? {
                           borderColor: (() => {
                             const val = String(quizSelections[qi] || '').trim().toLowerCase()
                             const ok = [String(q.answerText||'').trim().toLowerCase(), ...((q.acceptableAnswers||[]).map(s=>String(s).trim().toLowerCase()))].includes(val)
@@ -383,7 +435,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                           })()
                         } : {}}
                       />
-                      {(quizRevealed || (message.instantFeedback && answeredQuestions.includes(qi))) && (
+                      {quizRevealed && (
                         <small className="text-muted">الإجابة الصحيحة: <strong>{q.answerText}</strong></small>
                       )}
                     </div>
@@ -395,11 +447,10 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                           const selectedArr = Array.isArray(quizSelections[qi]) ? quizSelections[qi] : []
                           const selected = selectedArr.includes(oi)
                           const isCorrect = Array.isArray(q.correctIndices) ? q.correctIndices.includes(oi) : false
-                          const shouldShowFeedback = show || (message.instantFeedback && answeredQuestions.includes(qi))
-                          const bg = shouldShowFeedback
+                          const bg = show
                             ? (isCorrect ? 'rgba(25,135,84,0.15)' : (selected ? 'rgba(220,53,69,0.15)' : 'transparent'))
                             : (selected ? 'rgba(13,110,253,0.12)' : 'transparent')
-                          const border = shouldShowFeedback
+                          const border = show
                             ? (isCorrect ? '1px solid #198754' : (selected ? '1px solid #dc3545' : '1px solid #dee2e6'))
                             : (selected ? '1px solid #0d6efd' : '1px solid #dee2e6')
                           return (
@@ -416,14 +467,6 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                                 if (idx >= 0) cur.splice(idx,1); else cur.push(oi)
                                 next[qi] = cur
                                 setQuizSelections(next)
-                                // Mark question as answered for instant feedback
-                                if (message.instantFeedback) {
-                                  const nextAnswered = [...answeredQuestions]
-                                  if (!nextAnswered.includes(qi)) {
-                                    nextAnswered.push(qi)
-                                    setAnsweredQuestions(nextAnswered)
-                                  }
-                                }
                               }}
                             >
                               <div className="d-flex align-items-center">
@@ -436,11 +479,10 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                           // mcq / tf
                           const selected = quizSelections[qi] === oi
                           const isCorrect = q.correctIndex === oi
-                          const shouldShowFeedback = show || (message.instantFeedback && answeredQuestions.includes(qi))
-                          const bg = shouldShowFeedback
+                          const bg = show
                             ? (isCorrect ? 'rgba(25,135,84,0.15)' : (selected ? 'rgba(220,53,69,0.15)' : 'transparent'))
                             : (selected ? 'rgba(13,110,253,0.12)' : 'transparent')
-                          const border = shouldShowFeedback
+                          const border = show
                             ? (isCorrect ? '1px solid #198754' : (selected ? '1px solid #dc3545' : '1px solid #dee2e6'))
                             : (selected ? '1px solid #0d6efd' : '1px solid #dee2e6')
                           return (
@@ -454,14 +496,6 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                                 const next = [...quizSelections]
                                 next[qi] = oi
                                 setQuizSelections(next)
-                                // Mark question as answered for instant feedback
-                                if (message.instantFeedback) {
-                                  const nextAnswered = [...answeredQuestions]
-                                  if (!nextAnswered.includes(qi)) {
-                                    nextAnswered.push(qi)
-                                    setAnsweredQuestions(nextAnswered)
-                                  }
-                                }
                               }}
                             >
                               <div className="d-flex align-items-center">
@@ -474,8 +508,8 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                       })}
                     </div>
                   )}
-                  {/* Show explanation after quiz is revealed or immediately with instant feedback */}
-                  {(quizRevealed || (message.instantFeedback && answeredQuestions.includes(qi))) && q.explanation && (
+                  {/* Show explanation after quiz is revealed */}
+                  {quizRevealed && q.explanation && (
                     <div className="mt-2 p-2 rounded bg-light border-start border-primary border-3">
                       <small className="text-muted fw-bold">الشرح:</small>
                       <div className="small text-dark mt-1">{q.explanation}</div>
@@ -485,11 +519,15 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
               )
             })}
             <div className="mt-3">
-              {!quizRevealed && !message.instantFeedback ? (
+              {!quizRevealed ? (
                 <button
                   type="button"
                   className="btn btn-primary"
-                  onClick={() => setQuizRevealed(true)}
+                  onClick={() => {
+                    const score = calculateScore()
+                    setQuizScore(score)
+                    setQuizRevealed(true)
+                  }}
                   disabled={(() => {
                     if (!Array.isArray(message.quiz)) return true
                     // If timer is active, don't allow manual reveal unless time expired
@@ -506,17 +544,53 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                 >
                   تصحيح الإجابات
                 </button>
-              ) : message.instantFeedback && !quizRevealed ? (
-                <div className="alert alert-info">
-                  إجب على كل الأسئلة لترى التعليقات والشروحات فور اختيارك للإجابة.
-                </div>
               ) : (
-                <div className="alert alert-info">
-                  {timerExpired ? 
-                    'انتهى الوقت! تم إظهار الإجابات الصحيحة باللون الأخضر والخاطئة بالأحمر.' :
-                    'تم إظهار الإجابات الصحيحة باللون الأخضر والخاطئة بالأحمر.'
-                  }
-                </div>
+                <>
+                  <div className="alert alert-info">
+                    {timerExpired ? 
+                      'انتهى الوقت! تم إظهار الإجابات الصحيحة باللون الأخضر والخاطئة بالأحمر.' :
+                      'تم إظهار الإجابات الصحيحة باللون الأخضر والخاطئة بالأحمر.'
+                    }
+                  </div>
+                  
+                  {/* Quiz Score Display */}
+                  {quizScore && (
+                    <div className="mt-3">
+                      <div className={`card border-0 ${quizScore.percentage >= 80 ? 'bg-success' : quizScore.percentage >= 60 ? 'bg-warning' : 'bg-danger'} bg-opacity-10`}>
+                        <div className="card-body text-center py-3">
+                          <h5 className="card-title mb-2">
+                            <i className="fas fa-chart-line me-2"></i>
+                            نتيجة الاختبار
+                          </h5>
+                          <div className="row">
+                            <div className="col-4">
+                              <div className="text-success fw-bold fs-4">{quizScore.correct}</div>
+                              <small className="text-muted">إجابات صحيحة</small>
+                            </div>
+                            <div className="col-4">
+                              <div className="text-danger fw-bold fs-4">{quizScore.total - quizScore.correct}</div>
+                              <small className="text-muted">إجابات خاطئة</small>
+                            </div>
+                            <div className="col-4">
+                              <div className={`fw-bold fs-3 ${quizScore.percentage >= 80 ? 'text-success' : quizScore.percentage >= 60 ? 'text-warning' : 'text-danger'}`}>
+                                {quizScore.percentage}%
+                              </div>
+                              <small className="text-muted">النسبة المئوية</small>
+                            </div>
+                          </div>
+                          
+                          <div className="mt-2">
+                            <div className={`badge ${quizScore.percentage >= 80 ? 'bg-success' : quizScore.percentage >= 60 ? 'bg-warning' : 'bg-danger'} fs-6`}>
+                              {quizScore.percentage >= 80 ? 'ممتاز! 🎉' : 
+                               quizScore.percentage >= 60 ? 'جيد 👍' : 
+                               'يحتاج تحسين 📚'}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -625,21 +699,6 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                 </label>
               </div>
             </div>
-            {/* Instant feedback toggle */}
-            <div className="d-flex align-items-center gap-2">
-              <div className="form-check form-switch">
-                <input
-                  className="form-check-input"
-                  type="checkbox"
-                  id={`instant-feedback-switch-${message.id}`}
-                  checked={instantFeedback}
-                  onChange={(e) => setInstantFeedback(e.target.checked)}
-                />
-                <label className="form-check-label" htmlFor={`instant-feedback-switch-${message.id}`}>
-                  تعليقات فورية
-                </label>
-              </div>
-            </div>
             <button
               type="button"
               className="btn btn-success d-flex align-items-center gap-2"
@@ -654,7 +713,6 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                   types: selTypes, 
                   timer: timerEnabled ? timerMinutes : null,
                   hints: hintsEnabled,
-                  instantFeedback: instantFeedback,
                   messageId: message.id 
                 })
               }}

@@ -282,7 +282,7 @@ async function readPDFFile(file) {
 
 
   // Quiz confirm handlers
-  const handleConfirmQuiz = async ({ subject, questions, answers, difficulties = ['medium'], types = ['mcq'], timer = null, hints = false, instantFeedback = true, messageId }) => {
+  const handleConfirmQuiz = async ({ subject, questions, answers, difficulties = ['medium'], types = ['mcq'], timer = null, hints = false, messageId }) => {
     setQuizGenerating(true)
     try {
       const res = await fetch('http://localhost:3001/api/chat', {
@@ -298,7 +298,6 @@ async function readPDFFile(file) {
           quizTypes: types,
           quizTimer: timer,
           quizHints: hints,
-          quizInstantFeedback: instantFeedback,
           webSearch: true,
           fetchUrl: true
         })
@@ -312,8 +311,7 @@ async function readPDFFile(file) {
         timestamp: new Date(),
         isQuiz: true,
         quiz: Array.isArray(data.quiz) ? data.quiz : [],
-        timer: timer,
-        instantFeedback: instantFeedback
+        timer: timer
       }
       // Remove the confirm message and add the quiz
       setMessages(prev => [...prev.filter(m => m.id !== messageId), quizMessage])

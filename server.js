@@ -162,7 +162,7 @@ const DARIJA_STYLE_GUIDE = `
 `;
 
 app.post("/api/chat", async (req, res) => {
-  const { message, history, pdfText, webSearch, image, pdfExport, quizMode, quizQuestions, quizOptions, quizDifficulties, quizTypes, quizTimer, quizHints, quizInstantFeedback } =
+  const { message, history, pdfText, webSearch, image, pdfExport, quizMode, quizQuestions, quizOptions, quizDifficulties, quizTypes, quizTimer, quizHints } =
     req.body || {};
   const { fetchUrl } = req.body || {};
   // Language request detection (explicit instructions override Darija)
