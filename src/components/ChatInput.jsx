@@ -13,7 +13,11 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
   const imageInputRef = useRef(null)
 
   const handleSend = () => {
-    if (!inputText.trim() && !selectedFile && !selectedImage) return
+    // Allow sending in quiz mode if there's a PDF file (even without text)
+    const hasContent = inputText.trim() || selectedFile || selectedImage;
+    const canSendQuizWithPdf = quizMode && selectedFile && selectedFile.type === 'application/pdf';
+    
+    if (!hasContent && !canSendQuizWithPdf) return
     
     onSendMessage({
       text: inputText,
@@ -40,11 +44,11 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
   const handleFileSelect = (event) => {
     const file = event.target.files[0]
     if (file && file.type === 'application/pdf') {
-      // Mutual exclusivity: selecting a file disables combined tool and image
+      // Allow PDF with quiz mode: selecting a file disables combined tool and image but keeps quiz mode
       setCombinedToolEnabled(false)
       setSelectedImage(null)
       if (imageInputRef.current) imageInputRef.current.value = ''
-      setQuizMode(false)
+      // Don't disable quiz mode - PDF can be used for quiz generation
       setSelectedFile(file)
     }
   }
@@ -64,26 +68,23 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
       if (fileInputRef.current) fileInputRef.current.value = ''
       if (imageInputRef.current) imageInputRef.current.value = ''
     }
-  // Also turn off quiz mode when enabling combined tool
-  setQuizMode(false)
+    // Note: Quiz mode can coexist with combined tool for PDF+quiz functionality
     setCombinedToolEnabled(prev => !prev)
     setToolMenuOpen(false)
   }
 
   const openFilePicker = () => {
-  // Mutual exclusivity: choosing upload clears combined tool and image
-  setCombinedToolEnabled(false)
-  setQuizMode(false)
-  setSelectedImage(null)
-  if (imageInputRef.current) imageInputRef.current.value = ''
+    // Only clear image when selecting PDF files (PDFs can work with quiz mode)
+    setSelectedImage(null)
+    if (imageInputRef.current) imageInputRef.current.value = ''
     setToolMenuOpen(false)
     fileInputRef.current?.click()
   }
 
   const openImagePicker = () => {
-    // Mutual exclusivity: choosing image upload clears combined tool and file
+    // Mutual exclusivity: choosing image upload clears combined tool and file  
     setCombinedToolEnabled(false)
-  setQuizMode(false)
+    setQuizMode(false) // Images don't work with quiz mode
     setSelectedFile(null)
     if (fileInputRef.current) fileInputRef.current.value = ''
     setToolMenuOpen(false)
@@ -194,7 +195,13 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
                       handleSend()
                     }
                   }}
-                  placeholder="اكتب سؤالك هنا بالدارجة التونسية..."
+                  placeholder={
+                    quizMode 
+                      ? (selectedFile 
+                          ? "اكتب موضوع الاختبار (اختياري - يمكنك الضغط على الإرسال مباشرة لإنشاء اختبار من الـ PDF)"
+                          : "اكتب موضوع الاختبار أو حمّل ملف PDF")
+                      : "اكتب سؤالك هنا بالدارجة التونسية..."
+                  }
                   className="form-control chat-input border-0 shadow-sm"
                   style={{ 
                     resize: 'none', 
@@ -239,14 +246,12 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
                           بحث الويب + جلب الرابط {combinedToolEnabled ? '✓' : ''}
                         </button>
                         <button className="dropdown-item d-flex align-items-center" type="button" onClick={() => {
-                          // Mutual exclusivity: enabling quiz clears other tools
+                          // Allow quiz mode to work with other tools (especially PDF upload)
                           const next = !quizMode
                           if (next) {
+                            // Only clear web search when enabling quiz mode
+                            // Keep PDF files and images as they can be used for quiz generation
                             setCombinedToolEnabled(false)
-                            setSelectedFile(null)
-                            setSelectedImage(null)
-                            if (fileInputRef.current) fileInputRef.current.value = ''
-                            if (imageInputRef.current) imageInputRef.current.value = ''
                           }
                           setQuizMode(next)
                           setToolMenuOpen(false)
@@ -264,7 +269,11 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
                 whileHover={{ scale: disabled ? 1 : 1.05 }}
                 whileTap={{ scale: disabled ? 1 : 0.95 }}
                 onClick={handleSend}
-                disabled={disabled || (!inputText.trim() && !selectedFile && !selectedImage)}
+                disabled={disabled || (() => {
+                  const hasContent = inputText.trim() || selectedFile || selectedImage;
+                  const canSendQuizWithPdf = quizMode && selectedFile && selectedFile.type === 'application/pdf';
+                  return !hasContent && !canSendQuizWithPdf;
+                })()}
                 className="btn tunisian-primary text-white shadow-sm d-flex align-items-center justify-content-center"
                 style={{ 
                   width: '48px', 

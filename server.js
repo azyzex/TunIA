@@ -162,8 +162,21 @@ const DARIJA_STYLE_GUIDE = `
 `;
 
 app.post("/api/chat", async (req, res) => {
-  const { message, history, pdfText, webSearch, image, pdfExport, quizMode, quizQuestions, quizOptions, quizDifficulties, quizTypes, quizTimer, quizHints } =
-    req.body || {};
+  const {
+    message,
+    history,
+    pdfText,
+    webSearch,
+    image,
+    pdfExport,
+    quizMode,
+    quizQuestions,
+    quizOptions,
+    quizDifficulties,
+    quizTypes,
+    quizTimer,
+    quizHints,
+  } = req.body || {};
   const { fetchUrl } = req.body || {};
   // Language request detection (explicit instructions override Darija)
   const detectRequestedLanguage = (msg) => {
@@ -210,8 +223,8 @@ app.post("/api/chat", async (req, res) => {
         fetchUrl: Boolean(fetchUrl),
         pdfLen: pdfText ? String(pdfText).length : 0,
         hasImage: Boolean(image && image.data && image.mimeType),
-  time: new Date().toISOString(),
-  quizMode: Boolean(quizMode),
+        time: new Date().toISOString(),
+        quizMode: Boolean(quizMode),
       },
       null,
       0
@@ -227,68 +240,104 @@ app.post("/api/chat", async (req, res) => {
   try {
     // Quiz generation mode: return a structured quiz instead of a normal reply
     if (quizMode && typeof message === "string" && message.trim().length) {
+      console.log("🎯 Quiz mode detected!");
+      console.log("📄 PDF Text received:", pdfText ? `${pdfText.substring(0, 100)}...` : "NO PDF TEXT");
+      console.log("📝 Subject:", message);
+      
       const subject = message.trim().slice(0, 400);
-      const qCount = Math.max(2, Math.min(40, parseInt(quizQuestions || 5, 10)));
+      const qCount = Math.max(
+        2,
+        Math.min(40, parseInt(quizQuestions || 5, 10))
+      );
       const aCount = Math.max(2, Math.min(5, parseInt(quizOptions || 4, 10)));
       // Try to gather web context (force like PDF)
       let contextSnippets = [];
-      try {
-        const q = encodeURIComponent(subject.slice(0, 200));
-        const ddgUrl = `https://api.duckduckgo.com/?q=${q}&format=json&no_redirect=1&no_html=1&skip_disambig=1`;
-        const ddgResp = await fetch(ddgUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
-        const ddgJson = await ddgResp.json();
-        const firstURL = ddgJson?.AbstractURL || (Array.isArray(ddgJson?.Results) && ddgJson.Results[0]?.FirstURL) || "";
-        const urls = [];
-        if (firstURL) urls.push(firstURL);
-        if (Array.isArray(ddgJson?.RelatedTopics)) {
-          for (const t of ddgJson.RelatedTopics) {
-            const url = t?.FirstURL || (Array.isArray(t?.Topics) ? t.Topics[0]?.FirstURL : "");
-            if (url) urls.push(url);
-            if (urls.length >= 3) break;
-          }
-        }
-        // Fallback to HTML results if needed
-        if (urls.length < 3) {
-          const ddgHtmlUrl = `https://html.duckduckgo.com/html/?q=${q}`;
-          const htmlResp = await fetch(ddgHtmlUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
-          const html = await htmlResp.text();
-          const $ = cheerioLoad(html);
-          $("a.result__a").each((_, el) => {
-            if (urls.length >= 3) return false;
-            let url = $(el).attr("href");
-            if (url && url.includes("//duckduckgo.com/l/?uddg=")) {
-              try {
-                const urlParams = new URL(url, "https://duckduckgo.com");
-                const actualUrl = decodeURIComponent(urlParams.searchParams.get("uddg") || "");
-                if (actualUrl) url = actualUrl;
-              } catch (_) {
-                // ignore URL decode errors
-              }
-            }
-            if (url) urls.push(url);
+
+      // If PDF text is provided, use it as primary context
+      if (pdfText && typeof pdfText === "string" && pdfText.trim()) {
+        // Clean and truncate PDF text for quiz context
+        const cleanPdfText = pdfText.replace(/\s+/g, " ").trim().slice(0, 8000); // Use first 8000 chars of PDF
+
+        contextSnippets.push(`المحتوى من الملف المرفوع:\n${cleanPdfText}`);
+        console.log(
+          "Using PDF text for quiz generation, length:",
+          cleanPdfText.length
+        );
+      } else {
+        // Fallback to web search if no PDF provided
+        try {
+          const q = encodeURIComponent(subject.slice(0, 200));
+          const ddgUrl = `https://api.duckduckgo.com/?q=${q}&format=json&no_redirect=1&no_html=1&skip_disambig=1`;
+          const ddgResp = await fetch(ddgUrl, {
+            headers: { "User-Agent": "Mozilla/5.0" },
           });
-        }
-        // Fetch text from top URLs
-        for (const u of urls.slice(0, 2)) {
-          try {
-            const resp = await fetch(u, { headers: { "User-Agent": "Mozilla/5.0" } });
-            const ct = (resp.headers.get("content-type") || "").toLowerCase();
-            const raw = await resp.text();
-            let text = raw;
-            if (ct.includes("text/html")) {
-              const $ = cheerioLoad(raw);
-              $("script, style, noscript").remove();
-              text = $("body").text().replace(/\s+/g, " ").trim();
+          const ddgJson = await ddgResp.json();
+          const firstURL =
+            ddgJson?.AbstractURL ||
+            (Array.isArray(ddgJson?.Results) && ddgJson.Results[0]?.FirstURL) ||
+            "";
+          const urls = [];
+          if (firstURL) urls.push(firstURL);
+          if (Array.isArray(ddgJson?.RelatedTopics)) {
+            for (const t of ddgJson.RelatedTopics) {
+              const url =
+                t?.FirstURL ||
+                (Array.isArray(t?.Topics) ? t.Topics[0]?.FirstURL : "");
+              if (url) urls.push(url);
+              if (urls.length >= 3) break;
             }
-            if (text) contextSnippets.push(text.slice(0, 7000));
-          } catch (_) {
-            // ignore per-URL fetch errors in quiz context
           }
+          // Fallback to HTML results if needed
+          if (urls.length < 3) {
+            const ddgHtmlUrl = `https://html.duckduckgo.com/html/?q=${q}`;
+            const htmlResp = await fetch(ddgHtmlUrl, {
+              headers: { "User-Agent": "Mozilla/5.0" },
+            });
+            const html = await htmlResp.text();
+            const $ = cheerioLoad(html);
+            $("a.result__a").each((_, el) => {
+              if (urls.length >= 3) return false;
+              let url = $(el).attr("href");
+              if (url && url.includes("//duckduckgo.com/l/?uddg=")) {
+                try {
+                  const urlParams = new URL(url, "https://duckduckgo.com");
+                  const actualUrl = decodeURIComponent(
+                    urlParams.searchParams.get("uddg") || ""
+                  );
+                  if (actualUrl) url = actualUrl;
+                } catch (_) {
+                  // ignore URL decode errors
+                }
+              }
+              if (url) urls.push(url);
+            });
+          }
+          // Fetch text from top URLs
+          for (const u of urls.slice(0, 2)) {
+            try {
+              const resp = await fetch(u, {
+                headers: { "User-Agent": "Mozilla/5.0" },
+              });
+              const ct = (resp.headers.get("content-type") || "").toLowerCase();
+              const raw = await resp.text();
+              let text = raw;
+              if (ct.includes("text/html")) {
+                const $ = cheerioLoad(raw);
+                $("script, style, noscript").remove();
+                text = $("body").text().replace(/\s+/g, " ").trim();
+              }
+              if (text) contextSnippets.push(text.slice(0, 7000));
+            } catch (_) {
+              // ignore per-URL fetch errors in quiz context
+            }
+          }
+        } catch (_) {
+          // ignore web context aggregation errors for quiz
         }
-      } catch (_) {
-        // ignore web context aggregation errors for quiz
       }
-      const selectedTypes = Array.isArray(quizTypes) && quizTypes.length > 0 ? quizTypes : ['mcq'];
+
+      const selectedTypes =
+        Array.isArray(quizTypes) && quizTypes.length > 0 ? quizTypes : ["mcq"];
       const QUIZ_INSTR = `
 ${DARIJA_STYLE_GUIDE}
 
@@ -302,17 +351,23 @@ ${DARIJA_STYLE_GUIDE}
 5. استعمل أسئلة تبدأ بـ: "شنوة..."، "كيفاش..."، "وين..."، "قدّاش..."، "علاش..."
 6. لا تكرر نفس السؤال أبداً - كل سؤال لازم يكون مختلف تماماً
 
-**أنواع الأسئلة المسموحة فقط**: ${selectedTypes.map(t => {
-  if (t === 'mcq') return '"mcq" (اختيار واحد)';
-  if (t === 'mcma') return '"mcma" (اختيارات متعددة)';
-  if (t === 'tf') return '"tf" (صح/غلط)';
-  if (t === 'fitb') return '"fitb" (فراغ)';
-  return `"${t}"`;
-}).join('، ')}
+**أنواع الأسئلة المسموحة فقط**: ${selectedTypes
+        .map((t) => {
+          if (t === "mcq") return '"mcq" (اختيار واحد)';
+          if (t === "mcma") return '"mcma" (اختيارات متعددة)';
+          if (t === "tf") return '"tf" (صح/غلط)';
+          if (t === "fitb") return '"fitb" (فراغ)';
+          return `"${t}"`;
+        })
+        .join("، ")}
 
 لا تستعمل أي نوع آخر من الأسئلة غير الموجود في القائمة أعلاه.
 
-${selectedTypes.length > 1 ? `وزع الأسئلة على الأنواع المختارة بطريقة متوازنة. مثلاً: إذا كان عندك ${qCount} أسئلة و${selectedTypes.length} أنواع، وزع الأسئلة بطريقة متوازنة.` : ''}
+${
+  selectedTypes.length > 1
+    ? `وزع الأسئلة على الأنواع المختارة بطريقة متوازنة. مثلاً: إذا كان عندك ${qCount} أسئلة و${selectedTypes.length} أنواع، وزع الأسئلة بطريقة متوازنة.`
+    : ""
+}
 
 **أمثلة لأسئلة صحيحة**:
 - "شنوة الغرض الأساسي من MongoDB؟"
@@ -325,7 +380,15 @@ ${selectedTypes.length > 1 ? `وزع الأسئلة على الأنواع الم
 - "كيف تشوف MongoDB؟"
 - "MongoDB أحسن من MySQL؟" (سؤال رأي)
 
-مستوى الصعوبة المطلوب: ${Array.isArray(quizDifficulties) && quizDifficulties.length > 0 ? quizDifficulties.map(d => d === 'easy' ? 'سهل' : d === 'medium' ? 'متوسط' : 'صعب').join('، ') : 'متوسط'}
+مستوى الصعوبة المطلوب: ${
+        Array.isArray(quizDifficulties) && quizDifficulties.length > 0
+          ? quizDifficulties
+              .map((d) =>
+                d === "easy" ? "سهل" : d === "medium" ? "متوسط" : "صعب"
+              )
+              .join("، ")
+          : "متوسط"
+      }
 
 مهم جداً للـ MCMA: لازم تكون الإجابات الصحيحة متنوعة ومنطقية، مش كلها صحيحة. مثلاً: من 4 خيارات، ممكن 1 أو 2 أو 3 يكونوا صحاح، أما مش لازم الكل.
 
@@ -337,25 +400,47 @@ ${selectedTypes.length > 1 ? `وزع الأسئلة على الأنواع الم
 - correctIndices: Array من أرقام الإجابات الصحيحة للـ mcma
 - answerText: النص الصحيح للـ fitb
 - acceptableAnswers: Array من الإجابات المقبولة للـ fitb (اختياري)
-- explanation: شرح مفصل ليه الإجابة الصحيحة صحيحة والباقي غلط (بالدارجة التونسية)${quizHints ? `
+- explanation: شرح مفصل ليه الإجابة الصحيحة صحيحة والباقي غلط (بالدارجة التونسية)${
+        quizHints
+          ? `
 - hint: تلميحة **مفيدة حقاً** تساعد في حل السؤال. أمثلة جيدة: 
   * للـ MCQ: "تفكر في الاستعمال الأساسي..." أو "هاذا مربوط بـ..." أو "اقرا الخيار الثاني مليح"
   * للـ MCMA: "الإجابات الصحيحة عادة تكون متشابهة في..." أو "ركز على الخيارات إلي فيها كلمة..."
   * للـ TF: "فكر: ياخي MongoDB نفس Excel؟" أو "هاذي الحاجة تشبه..." أو "اسأل روحك ياخي..."  
   * للـ FITB: "الكلمة تبدأ بـ... وعندها _ حروف" أو "مرادف لـ..." أو "ضد كلمة..."
-  التلميحة لازم تعطي اتجاه واضح أو تلميح مباشر بلا ما تقول الإجابة نهائياً (بالدارجة التونسية)` : ''}
+  التلميحة لازم تعطي اتجاه واضح أو تلميح مباشر بلا ما تقول الإجابة نهائياً (بالدارجة التونسية)`
+          : ""
+      }
 
 أمثلة:
-MCQ: { "type": "mcq", "question": "شنوّة ...؟", "options": ["...","...","...","..."], "correctIndex": 1, "explanation": "الإجابة الثانية صحيحة خاطر..."${quizHints ? ', "hint": "اقرا الخيار الثاني مليح - فيه كلمة مهمة تبدأ بحرف \'د\'"' : ''} }
-MCMA: { "type": "mcma", "question": "أشنية من هذول ...؟", "options": ["...","...","...","..."], "correctIndices": [0,2], "explanation": "الخيارين الأول والثالث صحاح خاطر..."${quizHints ? ', "hint": "الإجابات الصحيحة عادة تكون مربوطة بالبيانات والتخزين"' : ''} }
-TF: { "type": "tf", "question": "... صحيح؟", "options": ["صحيح","غلط"], "correctIndex": 0, "explanation": "صحيح خاطر..."${quizHints ? ', "hint": "فكر: ياخي MongoDB يشبه Excel؟ الجواب واضح"' : ''} }
-FITB: { "type": "fitb", "question": "... هو ___", "answerText": "الجواب", "acceptableAnswers": ["الجواب","جواب"], "explanation": "الجواب الصحيح هو 'الجواب' خاطر..."${quizHints ? ', "hint": "الكلمة عندها 6 حروف وتبدأ بـ \'ج\' وتعني النتيجة"' : ''} }
+MCQ: { "type": "mcq", "question": "شنوّة ...؟", "options": ["...","...","...","..."], "correctIndex": 1, "explanation": "الإجابة الثانية صحيحة خاطر..."${
+        quizHints
+          ? ', "hint": "اقرا الخيار الثاني مليح - فيه كلمة مهمة تبدأ بحرف \'د\'"'
+          : ""
+      } }
+MCMA: { "type": "mcma", "question": "أشنية من هذول ...؟", "options": ["...","...","...","..."], "correctIndices": [0,2], "explanation": "الخيارين الأول والثالث صحاح خاطر..."${
+        quizHints
+          ? ', "hint": "الإجابات الصحيحة عادة تكون مربوطة بالبيانات والتخزين"'
+          : ""
+      } }
+TF: { "type": "tf", "question": "... صحيح؟", "options": ["صحيح","غلط"], "correctIndex": 0, "explanation": "صحيح خاطر..."${
+        quizHints ? ', "hint": "فكر: ياخي MongoDB يشبه Excel؟ الجواب واضح"' : ""
+      } }
+FITB: { "type": "fitb", "question": "... هو ___", "answerText": "الجواب", "acceptableAnswers": ["الجواب","جواب"], "explanation": "الجواب الصحيح هو 'الجواب' خاطر..."${
+        quizHints
+          ? ', "hint": "الكلمة عندها 6 حروف وتبدأ بـ \'ج\' وتعني النتيجة"'
+          : ""
+      } }
 
 الموضوع: ${subject}
-${contextSnippets.length ? `
+${
+  contextSnippets.length
+    ? `
 مراجع من الويب (مقتطفات غير مباشرة باش تعاونك في تكوين الأسئلة):
-${contextSnippets.map((t,i)=>`[${i+1}] ${t}`).join('\n\n')}
-` : ''}
+${contextSnippets.map((t, i) => `[${i + 1}] ${t}`).join("\n\n")}
+`
+    : ""
+}
 
 رجّع الـ JSON فقط.`;
       let quiz = [];
@@ -364,21 +449,34 @@ ${contextSnippets.map((t,i)=>`[${i+1}] ${t}`).join('\n\n')}
         const response = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contents: [ { role: "user", parts: [{ text: QUIZ_INSTR }] } ], generationConfig: { temperature: 0.3, maxOutputTokens: 2048 } }),
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: QUIZ_INSTR }] }],
+            generationConfig: { temperature: 0.3, maxOutputTokens: 2048 },
+          }),
         });
         const textBody = await response.text();
         if (response.ok) {
           let data;
-          try { data = JSON.parse(textBody); } catch { data = { raw: textBody }; }
+          try {
+            data = JSON.parse(textBody);
+          } catch {
+            data = { raw: textBody };
+          }
           let raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
           // Strip code fences if present
           raw = raw.replace(/```json\s*|```/g, "").trim();
           // Try to parse JSON array
-          try { quiz = JSON.parse(raw); } catch (_) {
+          try {
+            quiz = JSON.parse(raw);
+          } catch (_) {
             // Try to extract JSON array via regex
             const m = raw.match(/\[[\s\S]*\]/);
             if (m) {
-              try { quiz = JSON.parse(m[0]); } catch { quiz = []; }
+              try {
+                quiz = JSON.parse(m[0]);
+              } catch {
+                quiz = [];
+              }
             }
           }
         } else {
@@ -392,39 +490,74 @@ ${contextSnippets.map((t,i)=>`[${i+1}] ${t}`).join('\n\n')}
         return arr
           .filter((q) => q && typeof q.question === "string")
           .map((q) => {
-            const type = String(q.type || 'mcq').toLowerCase();
-            
+            const type = String(q.type || "mcq").toLowerCase();
+
             // STRICT TYPE CHECKING: Only allow selected types
             if (!selectedTypes.includes(type)) {
-              console.log(`Filtering out question type "${type}" - not in selected types:`, selectedTypes);
+              console.log(
+                `Filtering out question type "${type}" - not in selected types:`,
+                selectedTypes
+              );
               return null;
             }
-            
+
             const question = enforceTunisianLexicon(q.question).slice(0, 200);
-            const explanation = enforceTunisianLexicon(String(q.explanation || 'لم يتم توفير شرح لهذا السؤال.').trim()).slice(0, 500);
-            const hint = quizHints ? enforceTunisianLexicon(String(q.hint || '').trim()).slice(0, 300) : null;
-            
-            if (type === 'mcq') {
+            const explanation = enforceTunisianLexicon(
+              String(q.explanation || "لم يتم توفير شرح لهذا السؤال.").trim()
+            ).slice(0, 500);
+            const hint = quizHints
+              ? enforceTunisianLexicon(String(q.hint || "").trim()).slice(
+                  0,
+                  300
+                )
+              : null;
+
+            if (type === "mcq") {
               if (!Array.isArray(q.options)) return null;
-              let opts = q.options.slice(0, aCount).map((o) => String(o).trim()).filter(Boolean);
+              let opts = q.options
+                .slice(0, aCount)
+                .map((o) => String(o).trim())
+                .filter(Boolean);
               while (opts.length < aCount) opts.push("خيار إضافي");
               let idx = Number.isInteger(q.correctIndex) ? q.correctIndex : 0;
               if (idx < 0 || idx >= opts.length) idx = 0;
-              const result = { type: 'mcq', question, options: opts.map(enforceTunisianLexicon), correctIndex: idx, explanation };
+              const result = {
+                type: "mcq",
+                question,
+                options: opts.map(enforceTunisianLexicon),
+                correctIndex: idx,
+                explanation,
+              };
               if (hint) result.hint = hint;
               return result;
-            }
-            else if (type === 'mcma') {
+            } else if (type === "mcma") {
               if (!Array.isArray(q.options)) return null;
-              let opts = q.options.slice(0, aCount).map((o) => String(o).trim()).filter(Boolean);
+              let opts = q.options
+                .slice(0, aCount)
+                .map((o) => String(o).trim())
+                .filter(Boolean);
               while (opts.length < aCount) opts.push("خيار إضافي");
-              let indices = Array.isArray(q.correctIndices) ? q.correctIndices.filter(i => Number.isInteger(i) && i >= 0 && i < opts.length) : [0];
+              let indices = Array.isArray(q.correctIndices)
+                ? q.correctIndices.filter(
+                    (i) => Number.isInteger(i) && i >= 0 && i < opts.length
+                  )
+                : [0];
               if (!indices.length) indices = [0];
-              
-              // If all answers are marked as correct and we have more than 2 options, 
+
+              // If all answers are marked as correct and we have more than 2 options,
               // randomize it 70% of the time to make it more realistic (but still allow all-correct sometimes)
-              if (indices.length === opts.length && opts.length > 2 && Math.random() < 0.7) {
-                const numCorrect = Math.max(1, Math.min(opts.length - 1, Math.floor(Math.random() * (opts.length - 1)) + 1));
+              if (
+                indices.length === opts.length &&
+                opts.length > 2 &&
+                Math.random() < 0.7
+              ) {
+                const numCorrect = Math.max(
+                  1,
+                  Math.min(
+                    opts.length - 1,
+                    Math.floor(Math.random() * (opts.length - 1)) + 1
+                  )
+                );
                 indices = [];
                 while (indices.length < numCorrect) {
                   const idx = Math.floor(Math.random() * opts.length);
@@ -432,29 +565,48 @@ ${contextSnippets.map((t,i)=>`[${i+1}] ${t}`).join('\n\n')}
                 }
                 indices.sort();
               }
-              
-              const result = { type: 'mcma', question, options: opts.map(enforceTunisianLexicon), correctIndices: indices, explanation };
+
+              const result = {
+                type: "mcma",
+                question,
+                options: opts.map(enforceTunisianLexicon),
+                correctIndices: indices,
+                explanation,
+              };
               if (hint) result.hint = hint;
               return result;
-            }
-            else if (type === 'tf') {
+            } else if (type === "tf") {
               const opts = ["صحيح", "غلط"];
               let idx = Number.isInteger(q.correctIndex) ? q.correctIndex : 0;
               if (idx < 0 || idx > 1) idx = 0;
-              const result = { type: 'tf', question, options: opts, correctIndex: idx, explanation };
+              const result = {
+                type: "tf",
+                question,
+                options: opts,
+                correctIndex: idx,
+                explanation,
+              };
               if (hint) result.hint = hint;
               return result;
-            }
-            else if (type === 'fitb') {
-              const answerText = String(q.answerText || '').trim() || 'الجواب';
-              const acceptableAnswers = Array.isArray(q.acceptableAnswers) 
-                ? q.acceptableAnswers.map(a => String(a).trim()).filter(Boolean)
+            } else if (type === "fitb") {
+              const answerText = String(q.answerText || "").trim() || "الجواب";
+              const acceptableAnswers = Array.isArray(q.acceptableAnswers)
+                ? q.acceptableAnswers
+                    .map((a) => String(a).trim())
+                    .filter(Boolean)
                 : [answerText];
-              const result = { type: 'fitb', question, answerText: enforceTunisianLexicon(answerText), acceptableAnswers: acceptableAnswers.map(enforceTunisianLexicon), explanation };
+              const result = {
+                type: "fitb",
+                question,
+                answerText: enforceTunisianLexicon(answerText),
+                acceptableAnswers: acceptableAnswers.map(
+                  enforceTunisianLexicon
+                ),
+                explanation,
+              };
               if (hint) result.hint = hint;
               return result;
-            }
-            else {
+            } else {
               // If type is unknown and not in selected types, filter it out
               console.log(`Unknown question type "${type}" - filtering out`);
               return null;
@@ -469,85 +621,125 @@ ${contextSnippets.map((t,i)=>`[${i+1}] ${t}`).join('\n\n')}
         const baseQ = (i) => {
           const type = selectedTypes[i % selectedTypes.length];
           const questionNum = i + 1;
-          
-          if (type === 'mcq') {
+
+          if (type === "mcq") {
             const baseOptions = [
               enforceTunisianLexicon(`معلومة أساسية ومهمة`),
               enforceTunisianLexicon("معلومة مغلوطة"),
               enforceTunisianLexicon("معلومة غير دقيقة"),
               enforceTunisianLexicon("معلومة غير متعلقة"),
-              enforceTunisianLexicon("معلومة إضافية")
+              enforceTunisianLexicon("معلومة إضافية"),
             ];
             const result = {
-              type: 'mcq',
-              question: enforceTunisianLexicon(`سؤال ${questionNum}: شنوة الغرض الأساسي من استعمال "${subject}"؟`),
+              type: "mcq",
+              question: enforceTunisianLexicon(
+                `سؤال ${questionNum}: شنوة الغرض الأساسي من استعمال "${subject}"؟`
+              ),
               options: baseOptions.slice(0, aCount),
               correctIndex: 0,
-              explanation: enforceTunisianLexicon("الإجابة الأولى صحيحة خاطر تمثل الغرض الأساسي من استعمال هذا الموضوع.")
+              explanation: enforceTunisianLexicon(
+                "الإجابة الأولى صحيحة خاطر تمثل الغرض الأساسي من استعمال هذا الموضوع."
+              ),
             };
-            if (quizHints) result.hint = enforceTunisianLexicon(`الجواب موجود في الخيار الأول - ابحث على كلمة تبدأ بـ "م" وتخص التعلم.`);
+            if (quizHints)
+              result.hint = enforceTunisianLexicon(
+                `الجواب موجود في الخيار الأول - ابحث على كلمة تبدأ بـ "م" وتخص التعلم.`
+              );
             return result;
-          } else if (type === 'mcma') {
+          } else if (type === "mcma") {
             const baseOptions = [
               enforceTunisianLexicon(`معلومة مهمة`),
               enforceTunisianLexicon("معلومة إضافية"),
               enforceTunisianLexicon("معلومة مغلوطة"),
               enforceTunisianLexicon("معلومة عامة"),
-              enforceTunisianLexicon("معلومة أخرى")
+              enforceTunisianLexicon("معلومة أخرى"),
             ];
             // Generate random correctIndices (1-3 correct answers out of aCount)
-            const numCorrect = Math.max(1, Math.min(aCount - 1, Math.floor(Math.random() * 3) + 1));
+            const numCorrect = Math.max(
+              1,
+              Math.min(aCount - 1, Math.floor(Math.random() * 3) + 1)
+            );
             const correctIndices = [];
             while (correctIndices.length < numCorrect) {
               const idx = Math.floor(Math.random() * aCount);
               if (!correctIndices.includes(idx)) correctIndices.push(idx);
             }
             const result = {
-              type: 'mcma',
-              question: enforceTunisianLexicon(`سؤال ${questionNum}: أشنية من هذول صحيحة حول "${subject}"؟`),
+              type: "mcma",
+              question: enforceTunisianLexicon(
+                `سؤال ${questionNum}: أشنية من هذول صحيحة حول "${subject}"؟`
+              ),
               options: baseOptions.slice(0, aCount),
               correctIndices: correctIndices.sort(),
-              explanation: enforceTunisianLexicon(`الخيارات الصحيحة هي: ${correctIndices.map(i => `الخيار ${i+1}`).join(' و')} خاطر تتناسب مع الموضوع المطلوب.`)
+              explanation: enforceTunisianLexicon(
+                `الخيارات الصحيحة هي: ${correctIndices
+                  .map((i) => `الخيار ${i + 1}`)
+                  .join(" و")} خاطر تتناسب مع الموضوع المطلوب.`
+              ),
             };
-            if (quizHints) result.hint = enforceTunisianLexicon(`اختار الخيارات إلي فيها كلمات "مهمة" و "إضافية" - هذول عادة يكونوا صحاح في أي موضوع تعليمي.`);
+            if (quizHints)
+              result.hint = enforceTunisianLexicon(
+                `اختار الخيارات إلي فيها كلمات "مهمة" و "إضافية" - هذول عادة يكونوا صحاح في أي موضوع تعليمي.`
+              );
             return result;
-          } else if (type === 'tf') {
+          } else if (type === "tf") {
             const result = {
-              type: 'tf',
-              question: enforceTunisianLexicon(`سؤال ${questionNum}: "${subject}" موضوع مهم؟`),
+              type: "tf",
+              question: enforceTunisianLexicon(
+                `سؤال ${questionNum}: "${subject}" موضوع مهم؟`
+              ),
               options: ["صحيح", "غلط"],
               correctIndex: 0,
-              explanation: enforceTunisianLexicon("صحيح خاطر أي موضوع تعليمي يكون عادة مهم للفهم والتعلم.")
+              explanation: enforceTunisianLexicon(
+                "صحيح خاطر أي موضوع تعليمي يكون عادة مهم للفهم والتعلم."
+              ),
             };
-            if (quizHints) result.hint = enforceTunisianLexicon("فكر: ياخي التعلم مهم؟ لو كان الجواب نعم، اختار \"صحيح\".");
+            if (quizHints)
+              result.hint = enforceTunisianLexicon(
+                'فكر: ياخي التعلم مهم؟ لو كان الجواب نعم، اختار "صحيح".'
+              );
             return result;
-          } else if (type === 'fitb') {
+          } else if (type === "fitb") {
             const result = {
-              type: 'fitb',
-              question: enforceTunisianLexicon(`سؤال ${questionNum}: الموضوع متاعنا هو ___`),
+              type: "fitb",
+              question: enforceTunisianLexicon(
+                `سؤال ${questionNum}: الموضوع متاعنا هو ___`
+              ),
               answerText: enforceTunisianLexicon(subject.slice(0, 50)),
               acceptableAnswers: [enforceTunisianLexicon(subject.slice(0, 50))],
-              explanation: enforceTunisianLexicon(`الجواب الصحيح هو "${subject.slice(0, 50)}" خاطر هذا هو الموضوع إلي قاعد نتناقش فيه.`)
+              explanation: enforceTunisianLexicon(
+                `الجواب الصحيح هو "${subject.slice(
+                  0,
+                  50
+                )}" خاطر هذا هو الموضوع إلي قاعد نتناقش فيه.`
+              ),
             };
-            if (quizHints) result.hint = enforceTunisianLexicon(`الجواب يبدأ بأول حرف من "${subject}" وله نفس عدد الحروف (${subject.length} حرف)`);
+            if (quizHints)
+              result.hint = enforceTunisianLexicon(
+                `الجواب يبدأ بأول حرف من "${subject}" وله نفس عدد الحروف (${subject.length} حرف)`
+              );
             return result;
           } else {
             // Default MCQ fallback
             return {
-              type: 'mcq',
-              question: enforceTunisianLexicon(`سؤال ${questionNum}: شنوة الغرض من استعمال "${subject}"؟`),
+              type: "mcq",
+              question: enforceTunisianLexicon(
+                `سؤال ${questionNum}: شنوة الغرض من استعمال "${subject}"؟`
+              ),
               options: [
                 enforceTunisianLexicon(`غرض تعليمي ومهم`),
                 enforceTunisianLexicon("غرض غير واضح"),
                 enforceTunisianLexicon("ما لهوش غرض محدد"),
-                enforceTunisianLexicon("غرض تجريبي")
+                enforceTunisianLexicon("غرض تجريبي"),
               ],
               correctIndex: 0,
-              explanation: enforceTunisianLexicon("الإجابة الأولى صحيحة خاطر أي موضوع تعليمي عندو غرض واضح ومهم.")
+              explanation: enforceTunisianLexicon(
+                "الإجابة الأولى صحيحة خاطر أي موضوع تعليمي عندو غرض واضح ومهم."
+              ),
             };
           }
         };
-        finalQuiz = Array.from({length: qCount}, (_, i) => baseQ(i));
+        finalQuiz = Array.from({ length: qCount }, (_, i) => baseQ(i));
       }
       return res.json({ isQuiz: true, quiz: finalQuiz });
     }
@@ -1462,12 +1654,14 @@ ${DARIJA_STYLE_GUIDE}
   }
 });
 
-// DOCX Download endpoint 
+// DOCX Download endpoint
 app.post("/download-docx", async (req, res) => {
   try {
     const { messages, includeCitations } = req.body || {};
     if (!messages || !Array.isArray(messages)) {
-      return res.status(400).json({ error: "نقص شوية معلومات لإنشاء ال-Word." });
+      return res
+        .status(400)
+        .json({ error: "نقص شوية معلومات لإنشاء ال-Word." });
     }
 
     // Use same content extraction logic as PDF
@@ -1571,7 +1765,7 @@ ${DARIJA_STYLE_GUIDE}
       const allUrls = Array.from(
         new Set([...urlsFromText, ...urlsFromMsgs])
       ).slice(0, 6);
-      
+
       if (allUrls.length > 0) {
         const accessedStr = new Date().toLocaleDateString("en-GB");
         referencesText = "\n\n## المراجع\n\n";
@@ -1586,18 +1780,18 @@ ${DARIJA_STYLE_GUIDE}
     // For better Arabic support, let's create a simple text file with .docx extension
     // that Word can open and properly format Arabic text
     let cleanText = finalContent
-      .replace(/^#{1,6}\s+(.*)$/gm, '$1\n')  // Convert headers to plain text
-      .replace(/\*\*(.*?)\*\*/g, '$1')       // Remove bold markdown
-      .replace(/\*(.*?)\*/g, '$1')           // Remove italic markdown  
-      .replace(/`(.*?)`/g, '$1')             // Remove code markdown
-      .replace(/\[(.*?)\]\((.*?)\)/g, '$1 ($2)')  // Convert links to text
-      .replace(/^\s*[-*+]\s+/gm, '• ')       // Convert bullet points
-      .replace(/^\s*\d+\.\s+/gm, '')         // Convert numbered lists
-      .replace(/\n{3,}/g, '\n\n')            // Clean up extra line breaks
+      .replace(/^#{1,6}\s+(.*)$/gm, "$1\n") // Convert headers to plain text
+      .replace(/\*\*(.*?)\*\*/g, "$1") // Remove bold markdown
+      .replace(/\*(.*?)\*/g, "$1") // Remove italic markdown
+      .replace(/`(.*?)`/g, "$1") // Remove code markdown
+      .replace(/\[(.*?)\]\((.*?)\)/g, "$1 ($2)") // Convert links to text
+      .replace(/^\s*[-*+]\s+/gm, "• ") // Convert bullet points
+      .replace(/^\s*\d+\.\s+/gm, "") // Convert numbered lists
+      .replace(/\n{3,}/g, "\n\n") // Clean up extra line breaks
       .trim();
 
     // Add a BOM for proper UTF-8 encoding in Word
-    const bom = '\ufeff';
+    const bom = "\ufeff";
     const content = bom + cleanText;
 
     // Set headers for Rich Text Format which handles Arabic better
@@ -1606,9 +1800,9 @@ ${DARIJA_STYLE_GUIDE}
       "Content-Disposition",
       'attachment; filename="chat-export.rtf"'
     );
-    
+
     // Send UTF-8 encoded content
-    return res.send(Buffer.from(content, 'utf8'));
+    return res.send(Buffer.from(content, "utf8"));
   } catch (e) {
     console.error("DOCX generation failed:", e);
     return res
@@ -1622,7 +1816,9 @@ app.post("/download-markdown", async (req, res) => {
   try {
     const { messages, includeCitations } = req.body || {};
     if (!messages || !Array.isArray(messages)) {
-      return res.status(400).json({ error: "نقص شوية معلومات لإنشاء ال-Markdown." });
+      return res
+        .status(400)
+        .json({ error: "نقص شوية معلومات لإنشاء ال-Markdown." });
     }
 
     // Use same content extraction and refinement logic as PDF
@@ -1726,15 +1922,18 @@ ${DARIJA_STYLE_GUIDE}
       const allUrls = Array.from(
         new Set([...urlsFromText, ...urlsFromMsgs])
       ).slice(0, 6);
-      
+
       if (allUrls.length > 0) {
         const accessedStr = new Date().toLocaleDateString("en-GB");
         referencesText = "\n\n## المراجع\n\n";
         allUrls.forEach((url, i) => {
-          referencesText += `${i + 1}. [${url}](${url}) (accessed ${accessedStr})\n`;
+          referencesText += `${
+            i + 1
+          }. [${url}](${url}) (accessed ${accessedStr})\n`;
         });
       } else {
-        referencesText = "\n\n## المراجع\n\nلا توجد مراجع مستعملة في هذا التقرير.\n";
+        referencesText =
+          "\n\n## المراجع\n\nلا توجد مراجع مستعملة في هذا التقرير.\n";
       }
     }
 
