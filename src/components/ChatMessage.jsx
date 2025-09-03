@@ -19,6 +19,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
   const [timerEnabled, setTimerEnabled] = useState(false)
   const [timerMinutes, setTimerMinutes] = useState(10)
   const [hintsEnabled, setHintsEnabled] = useState(false)
+  const [instantFeedback, setInstantFeedback] = useState(true) // true = immediate, false = at end
   // Input validation state
   const [questionsCount, setQuestionsCount] = useState(message?.quizDefaultQuestions || 5)
   const [answersCount, setAnswersCount] = useState(message?.quizDefaultAnswers || 4)
@@ -27,6 +28,8 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
   const [timerExpired, setTimerExpired] = useState(false)
   // Hints state for individual questions
   const [hintsVisible, setHintsVisible] = useState([])
+  // Instant feedback state - track which questions have been answered
+  const [answeredQuestions, setAnsweredQuestions] = useState([])
 
   // Initialize selections when a quiz arrives
   React.useEffect(() => {
@@ -428,8 +431,16 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                           const next = [...quizSelections]
                           next[qi] = e.target.value
                           setQuizSelections(next)
+                          // Mark question as answered for instant feedback when user starts typing
+                          if (message.instantFeedback && e.target.value.trim()) {
+                            const nextAnswered = [...answeredQuestions]
+                            if (!nextAnswered.includes(qi)) {
+                              nextAnswered.push(qi)
+                              setAnsweredQuestions(nextAnswered)
+                            }
+                          }
                         }}
-                        style={quizRevealed ? {
+                        style={(quizRevealed || (message.instantFeedback && answeredQuestions.includes(qi))) ? { 
                           borderColor: (() => {
                             const val = String(quizSelections[qi] || '').trim().toLowerCase()
                             const ok = [String(q.answerText||'').trim().toLowerCase(), ...((q.acceptableAnswers||[]).map(s=>String(s).trim().toLowerCase()))].includes(val)
@@ -437,7 +448,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                           })()
                         } : {}}
                       />
-                      {quizRevealed && (
+                      {(quizRevealed || (message.instantFeedback && answeredQuestions.includes(qi))) && (
                         <small className="text-muted">الإجابة الصحيحة: <strong>{q.answerText}</strong></small>
                       )}
                     </div>
@@ -449,10 +460,11 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                           const selectedArr = Array.isArray(quizSelections[qi]) ? quizSelections[qi] : []
                           const selected = selectedArr.includes(oi)
                           const isCorrect = Array.isArray(q.correctIndices) ? q.correctIndices.includes(oi) : false
-                          const bg = show
+                          const shouldShowFeedback = show || (message.instantFeedback && answeredQuestions.includes(qi))
+                          const bg = shouldShowFeedback
                             ? (isCorrect ? 'rgba(25,135,84,0.15)' : (selected ? 'rgba(220,53,69,0.15)' : 'transparent'))
                             : (selected ? 'rgba(13,110,253,0.12)' : 'transparent')
-                          const border = show
+                          const border = shouldShowFeedback
                             ? (isCorrect ? '1px solid #198754' : (selected ? '1px solid #dc3545' : '1px solid #dee2e6'))
                             : (selected ? '1px solid #0d6efd' : '1px solid #dee2e6')
                           return (
@@ -469,6 +481,14 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                                 if (idx >= 0) cur.splice(idx,1); else cur.push(oi)
                                 next[qi] = cur
                                 setQuizSelections(next)
+                                // Mark question as answered for instant feedback
+                                if (message.instantFeedback) {
+                                  const nextAnswered = [...answeredQuestions]
+                                  if (!nextAnswered.includes(qi)) {
+                                    nextAnswered.push(qi)
+                                    setAnsweredQuestions(nextAnswered)
+                                  }
+                                }
                               }}
                             >
                               <div className="d-flex align-items-center">
@@ -481,10 +501,11 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                           // mcq / tf
                           const selected = quizSelections[qi] === oi
                           const isCorrect = q.correctIndex === oi
-                          const bg = show
+                          const shouldShowFeedback = show || (message.instantFeedback && answeredQuestions.includes(qi))
+                          const bg = shouldShowFeedback
                             ? (isCorrect ? 'rgba(25,135,84,0.15)' : (selected ? 'rgba(220,53,69,0.15)' : 'transparent'))
                             : (selected ? 'rgba(13,110,253,0.12)' : 'transparent')
-                          const border = show
+                          const border = shouldShowFeedback
                             ? (isCorrect ? '1px solid #198754' : (selected ? '1px solid #dc3545' : '1px solid #dee2e6'))
                             : (selected ? '1px solid #0d6efd' : '1px solid #dee2e6')
                           return (
@@ -498,6 +519,14 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                                 const next = [...quizSelections]
                                 next[qi] = oi
                                 setQuizSelections(next)
+                                // Mark question as answered for instant feedback
+                                if (message.instantFeedback) {
+                                  const nextAnswered = [...answeredQuestions]
+                                  if (!nextAnswered.includes(qi)) {
+                                    nextAnswered.push(qi)
+                                    setAnsweredQuestions(nextAnswered)
+                                  }
+                                }
                               }}
                             >
                               <div className="d-flex align-items-center">
@@ -510,8 +539,8 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                       })}
                     </div>
                   )}
-                  {/* Show explanation after quiz is revealed */}
-                  {quizRevealed && q.explanation && (
+                  {/* Show explanation after quiz is revealed or immediately with instant feedback */}
+                  {(quizRevealed || (message.instantFeedback && answeredQuestions.includes(qi))) && q.explanation && (
                     <div className="mt-2 p-2 rounded bg-light border-start border-primary border-3">
                       <small className="text-muted fw-bold">الشرح:</small>
                       <div className="small text-dark mt-1">{q.explanation}</div>
@@ -521,7 +550,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
               )
             })}
             <div className="mt-3">
-              {!quizRevealed ? (
+              {!quizRevealed && !message.instantFeedback ? (
                 <button
                   type="button"
                   className="btn btn-primary"
@@ -546,6 +575,10 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                 >
                   تصحيح الإجابات
                 </button>
+              ) : message.instantFeedback && !quizRevealed ? (
+                <div className="alert alert-info">
+                  إجب على كل الأسئلة لترى التعليقات والشروحات فور اختيارك للإجابة.
+                </div>
               ) : (
                 <>
                   <div className="alert alert-info">
@@ -758,6 +791,21 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                 </label>
               </div>
             </div>
+            {/* Instant feedback toggle */}
+            <div className="d-flex align-items-center gap-2">
+              <div className="form-check form-switch">
+                <input
+                  className="form-check-input"
+                  type="checkbox"
+                  id={`instant-feedback-switch-${message.id}`}
+                  checked={instantFeedback}
+                  onChange={(e) => setInstantFeedback(e.target.checked)}
+                />
+                <label className="form-check-label" htmlFor={`instant-feedback-switch-${message.id}`}>
+                  تعليقات فورية
+                </label>
+              </div>
+            </div>
             <button
               type="button"
               className="btn btn-success d-flex align-items-center gap-2"
@@ -772,6 +820,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                   types: selTypes, 
                   timer: timerEnabled ? timerMinutes : null,
                   hints: hintsEnabled,
+                  instantFeedback: instantFeedback,
                   messageId: message.id 
                 })
               }}

@@ -351,7 +351,7 @@ async function readPDFFile(file) {
 
 
   // Quiz confirm handlers
-  const handleConfirmQuiz = async ({ subject, questions, answers, difficulties = ['medium'], types = ['mcq'], timer = null, hints = false, messageId }) => {
+  const handleConfirmQuiz = async ({ subject, questions, answers, difficulties = ['medium'], types = ['mcq'], timer = null, hints = false, instantFeedback = true, messageId }) => {
     setQuizGenerating(true)
     
     // Find the confirming message to get PDF text if available
@@ -376,6 +376,7 @@ async function readPDFFile(file) {
           quizTypes: types,
           quizTimer: timer,
           quizHints: hints,
+          quizInstantFeedback: instantFeedback,
           webSearch: true,
           fetchUrl: true
         })
@@ -390,6 +391,7 @@ async function readPDFFile(file) {
         isQuiz: true,
         quiz: Array.isArray(data.quiz) ? data.quiz : [],
         timer: timer,
+        instantFeedback: instantFeedback,
         // Store quiz parameters for regeneration
         quizSubject: subject,
         quizQuestions: questions,
@@ -397,7 +399,8 @@ async function readPDFFile(file) {
         quizDifficulties: difficulties,
         quizTypes: types,
         quizTimer: timer,
-        quizHints: hints
+        quizHints: hints,
+        quizInstantFeedback: instantFeedback
       }
       // Remove the confirm message and add the quiz
       setMessages(prev => [...prev.filter(m => m.id !== messageId), quizMessage])
