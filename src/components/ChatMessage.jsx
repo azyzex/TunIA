@@ -7,6 +7,8 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
   const isUser = message?.sender === 'user'
   // Per-message toggle for including citations in PDF
   const [includeCitations, setIncludeCitations] = useState(true)
+  // Export format selection
+  const [exportFormat, setExportFormat] = useState('pdf')
   // Quiz UI state
   const [quizSelections, setQuizSelections] = useState([])
   const [quizRevealed, setQuizRevealed] = useState(false)
@@ -801,34 +803,52 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
         </div>
       )}
       {message.isPdfPreview && (
-        <div className="mt-3 mb-2 d-flex align-items-center gap-3 flex-wrap">
-          <div className="form-check form-switch d-flex align-items-center">
-            <input
-              className="form-check-input"
-              type="checkbox"
-              id={`citations-switch-${message.id}`}
-              checked={includeCitations}
-              onChange={(e) => setIncludeCitations(e.target.checked)}
-            />
-            <label className="form-check-label ms-2" htmlFor={`citations-switch-${message.id}`}>
-              المراجع
-            </label>
+        <div className="mt-3 mb-2">
+          <div className="d-flex align-items-center gap-3 flex-wrap mb-3">
+            <div className="form-check form-switch d-flex align-items-center">
+              <input
+                className="form-check-input"
+                type="checkbox"
+                id={`citations-switch-${message.id}`}
+                checked={includeCitations}
+                onChange={(e) => setIncludeCitations(e.target.checked)}
+              />
+              <label className="form-check-label ms-2" htmlFor={`citations-switch-${message.id}`}>
+                المراجع
+              </label>
+            </div>
+            
+            {/* Format Selection */}
+            <div className="d-flex align-items-center gap-2">
+              <label className="form-label m-0">تنسيق التحميل:</label>
+              <select 
+                className="form-select form-select-sm" 
+                style={{ width: 'auto' }}
+                value={exportFormat}
+                onChange={(e) => setExportFormat(e.target.value)}
+              >
+                <option value="pdf">PDF</option>
+                <option value="docx">Word (RTF)</option>
+                <option value="markdown">Markdown (MD)</option>
+              </select>
+            </div>
           </div>
+          
           <button
             type="button"
             className="btn btn-success d-flex align-items-center gap-2"
-            onClick={() => onConfirmPdfDownload && onConfirmPdfDownload(message.pdfData, message.id, includeCitations)}
+            onClick={() => onConfirmPdfDownload && onConfirmPdfDownload(message.pdfData, message.id, includeCitations, exportFormat)}
             disabled={downloadingPdf === message.id}
           >
             {downloadingPdf === message.id ? (
               <>
                 <Loader2 size={16} className="animate-spin" />
-                <span>جاري تحميل الـ PDF...</span>
+                <span>جاري تحميل الملف...</span>
               </>
             ) : (
               <>
                 <Download size={16} />
-                <span>  PDF تحميل</span>
+                <span>تحميل {exportFormat === 'pdf' ? 'PDF' : exportFormat === 'docx' ? 'Word' : 'Markdown'}</span>
               </>
             )}
           </button>

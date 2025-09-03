@@ -123,27 +123,38 @@ function App() {
   }
 
   // Handler for confirming PDF download after preview
-  const handleConfirmPdfDownload = async (pdfData, messageId, includeCitations = true) => {
+  const handleConfirmPdfDownload = async (pdfData, messageId, includeCitations = true, exportFormat = 'pdf') => {
     setDownloadingPdf(messageId)
     try {
-      const pdfResponse = await fetch('http://localhost:3001/download-pdf', {
+      const endpoint = exportFormat === 'pdf' ? '/download-pdf' : 
+                     exportFormat === 'docx' ? '/download-docx' : 
+                     '/download-markdown'
+      
+      const response = await fetch(`http://localhost:3001${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: pdfData, includeCitations })
       })
       
-      if (!pdfResponse.ok) throw new Error('PDF download failed')
+      if (!response.ok) throw new Error(`${exportFormat.toUpperCase()} download failed`)
       
-      const blob = await pdfResponse.blob()
+      const blob = await response.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = 'chat-export.pdf'
+      
+      // Set appropriate file extension
+      const extension = exportFormat === 'pdf' ? '.pdf' : 
+                       exportFormat === 'docx' ? '.rtf' : '.md'
+      a.download = `chat-export${extension}`
+      
       a.click()
       URL.revokeObjectURL(url)
     } catch (error) {
-      console.error('PDF download error:', error)
-      alert('فشل في تحميل الـ PDF. جرّب مرة ثانية.')
+      console.error(`${exportFormat.toUpperCase()} download error:`, error)
+      const formatName = exportFormat === 'pdf' ? 'PDF' : 
+                        exportFormat === 'docx' ? 'Word (RTF)' : 'Markdown'
+      alert(`فشل في تحميل الـ ${formatName}. جرّب مرة ثانية.`)
     } finally {
       setDownloadingPdf(null)
     }

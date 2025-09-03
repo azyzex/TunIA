@@ -1462,4 +1462,296 @@ ${DARIJA_STYLE_GUIDE}
   }
 });
 
+// DOCX Download endpoint 
+app.post("/download-docx", async (req, res) => {
+  try {
+    const { messages, includeCitations } = req.body || {};
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: "نقص شوية معلومات لإنشاء ال-Word." });
+    }
+
+    // Use same content extraction logic as PDF
+    const aiMessages = messages.filter(
+      (msg) => msg.sender === "ai" && !msg.isWelcomeMessage
+    );
+    let combinedContent = "";
+    if (aiMessages.length === 0) {
+      const lastUser = Array.isArray(messages)
+        ? [...messages]
+            .reverse()
+            .find((m) => m && m.sender === "user" && m.text)
+        : null;
+      if (!lastUser) {
+        return res.status(400).json({ error: "ما فماش محتوى واضح للتصدير." });
+      }
+      combinedContent = String(lastUser.text || "");
+    } else {
+      combinedContent = aiMessages.map((msg) => msg.text).join("\n\n");
+    }
+
+    // Same refinement process as PDF
+    let refined = combinedContent;
+    try {
+      if (GEMINI_API_KEY) {
+        const REFINE_INSTRUCTION = `
+${DARIJA_STYLE_GUIDE}
+
+حول المحتوى التالي إلى تقرير علمي أكاديمي طويل ومُنظّم بلهجة تونسية واضحة ورصينة:
+- استعمل عناوين رئيسية وثانوية (##، ###) مع هيكلة واضحة: مقدمة، خلفية/نظريات، منهجية/خطوات، تحليل/نقاش، أمثلة تطبيقية، حدود العمل، وخلاصة.
+- كثّر التفاصيل والأمثلة والشرح، واستعمل قوائم نقطية أين يلزم.
+- لو فما مفاهيم أساسية، عرّفها بطريقة دقيقة وبسيطة.
+- ما تركّبش حقائق غير صحيحة. كان المعلومة مش مؤكدة، قول "حسب المعارف العامة".
+- خرّج النتيجة بنص Markdown فقط، بلا كود fences وبلا ذكر المنصّة ولا المزوّد.
+- خدم باللغة: الدارجة التونسية، وبأسلوب أكاديمي مهذّب.
+`;
+        const contents = [
+          { role: "user", parts: [{ text: REFINE_INSTRUCTION }] },
+          {
+            role: "user",
+            parts: [
+              {
+                text: `المحتوى المراد تحويله للصيغة الأكاديمية:\n${String(
+                  combinedContent
+                ).slice(0, 12000)}`,
+              },
+            ],
+          },
+          {
+            role: "user",
+            parts: [{ text: "رجّع النص الأكاديمي المفصل بنسق Markdown فقط." }],
+          },
+        ];
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents,
+            generationConfig: {
+              temperature: 0.7,
+              maxOutputTokens: 8192,
+            },
+          }),
+        });
+
+        const textBody = await response.text();
+        if (response.ok) {
+          let data;
+          try {
+            data = JSON.parse(textBody);
+          } catch {
+            data = { raw: textBody };
+          }
+          let out = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          if (out) {
+            out = out
+              .replace(/```[a-z]*\n|```/g, "")
+              .replace(/\bgemini\b/gi, "")
+              .replace(/\bgoogle\b/gi, "")
+              .trim();
+            refined = out;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Refinement failed for DOCX:", e.message);
+    }
+
+    // Enforce Tunisian lexicon
+    refined = enforceTunisianLexicon(refined);
+
+    // Simple citations gathering (reuse logic from PDF)
+    let referencesText = "";
+    if (includeCitations !== false) {
+      const urlRegexGlobal = /https?:\/\/[^\s)]+/gi;
+      const urlsFromText = refined.match(urlRegexGlobal) || [];
+      const urlsFromMsgs = aiMessages
+        .flatMap((m) => String(m.text || "").match(urlRegexGlobal) || [])
+        .filter(Boolean);
+      const allUrls = Array.from(
+        new Set([...urlsFromText, ...urlsFromMsgs])
+      ).slice(0, 6);
+      
+      if (allUrls.length > 0) {
+        const accessedStr = new Date().toLocaleDateString("en-GB");
+        referencesText = "\n\n## المراجع\n\n";
+        allUrls.forEach((url, i) => {
+          referencesText += `${i + 1}. ${url} (accessed ${accessedStr})\n`;
+        });
+      }
+    }
+
+    const finalContent = refined + referencesText;
+
+    // For better Arabic support, let's create a simple text file with .docx extension
+    // that Word can open and properly format Arabic text
+    let cleanText = finalContent
+      .replace(/^#{1,6}\s+(.*)$/gm, '$1\n')  // Convert headers to plain text
+      .replace(/\*\*(.*?)\*\*/g, '$1')       // Remove bold markdown
+      .replace(/\*(.*?)\*/g, '$1')           // Remove italic markdown  
+      .replace(/`(.*?)`/g, '$1')             // Remove code markdown
+      .replace(/\[(.*?)\]\((.*?)\)/g, '$1 ($2)')  // Convert links to text
+      .replace(/^\s*[-*+]\s+/gm, '• ')       // Convert bullet points
+      .replace(/^\s*\d+\.\s+/gm, '')         // Convert numbered lists
+      .replace(/\n{3,}/g, '\n\n')            // Clean up extra line breaks
+      .trim();
+
+    // Add a BOM for proper UTF-8 encoding in Word
+    const bom = '\ufeff';
+    const content = bom + cleanText;
+
+    // Set headers for Rich Text Format which handles Arabic better
+    res.setHeader("Content-Type", "application/rtf; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="chat-export.rtf"'
+    );
+    
+    // Send UTF-8 encoded content
+    return res.send(Buffer.from(content, 'utf8'));
+  } catch (e) {
+    console.error("DOCX generation failed:", e);
+    return res
+      .status(500)
+      .json({ error: "تعطلت خدمة إنشاء ال-Word مؤقتاً. جرّب بعد شوية." });
+  }
+});
+
+// Markdown Download endpoint
+app.post("/download-markdown", async (req, res) => {
+  try {
+    const { messages, includeCitations } = req.body || {};
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: "نقص شوية معلومات لإنشاء ال-Markdown." });
+    }
+
+    // Use same content extraction and refinement logic as PDF
+    const aiMessages = messages.filter(
+      (msg) => msg.sender === "ai" && !msg.isWelcomeMessage
+    );
+    let combinedContent = "";
+    if (aiMessages.length === 0) {
+      const lastUser = Array.isArray(messages)
+        ? [...messages]
+            .reverse()
+            .find((m) => m && m.sender === "user" && m.text)
+        : null;
+      if (!lastUser) {
+        return res.status(400).json({ error: "ما فماش محتوى واضح للتصدير." });
+      }
+      combinedContent = String(lastUser.text || "");
+    } else {
+      combinedContent = aiMessages.map((msg) => msg.text).join("\n\n");
+    }
+
+    // Same refinement process
+    let refined = combinedContent;
+    try {
+      if (GEMINI_API_KEY) {
+        const REFINE_INSTRUCTION = `
+${DARIJA_STYLE_GUIDE}
+
+حول المحتوى التالي إلى تقرير علمي أكاديمي طويل ومُنظّم بلهجة تونسية واضحة ورصينة:
+- استعمل عناوين رئيسية وثانوية (##، ###) مع هيكلة واضحة: مقدمة، خلفية/نظريات، منهجية/خطوات، تحليل/نقاش، أمثلة تطبيقية، حدود العمل، وخلاصة.
+- كثّر التفاصيل والأمثلة والشرح، واستعمل قوائم نقطية أين يلزم.
+- لو فما مفاهيم أساسية، عرّفها بطريقة دقيقة وبسيطة.
+- ما تركّبش حقائق غير صحيحة. كان المعلومة مش مؤكدة، قول "حسب المعارف العامة".
+- خرّج النتيجة بنص Markdown فقط، بلا كود fences وبلا ذكر المنصّة ولا المزوّد.
+- خدم باللغة: الدارجة التونسية، وبأسلوب أكاديمي مهذّب.
+`;
+        const contents = [
+          { role: "user", parts: [{ text: REFINE_INSTRUCTION }] },
+          {
+            role: "user",
+            parts: [
+              {
+                text: `المحتوى المراد تحويله للصيغة الأكاديمية:\n${String(
+                  combinedContent
+                ).slice(0, 12000)}`,
+              },
+            ],
+          },
+          {
+            role: "user",
+            parts: [{ text: "رجّع النص الأكاديمي المفصل بنسق Markdown فقط." }],
+          },
+        ];
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents,
+            generationConfig: {
+              temperature: 0.7,
+              maxOutputTokens: 8192,
+            },
+          }),
+        });
+
+        const textBody = await response.text();
+        if (response.ok) {
+          let data;
+          try {
+            data = JSON.parse(textBody);
+          } catch {
+            data = { raw: textBody };
+          }
+          let out = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          if (out) {
+            out = out
+              .replace(/```[a-z]*\n|```/g, "")
+              .replace(/\bgemini\b/gi, "")
+              .replace(/\bgoogle\b/gi, "")
+              .trim();
+            refined = out;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Refinement failed for Markdown:", e.message);
+    }
+
+    // Enforce Tunisian lexicon
+    refined = enforceTunisianLexicon(refined);
+
+    // Add references section if enabled
+    let referencesText = "";
+    if (includeCitations !== false) {
+      const urlRegexGlobal = /https?:\/\/[^\s)]+/gi;
+      const urlsFromText = refined.match(urlRegexGlobal) || [];
+      const urlsFromMsgs = aiMessages
+        .flatMap((m) => String(m.text || "").match(urlRegexGlobal) || [])
+        .filter(Boolean);
+      const allUrls = Array.from(
+        new Set([...urlsFromText, ...urlsFromMsgs])
+      ).slice(0, 6);
+      
+      if (allUrls.length > 0) {
+        const accessedStr = new Date().toLocaleDateString("en-GB");
+        referencesText = "\n\n## المراجع\n\n";
+        allUrls.forEach((url, i) => {
+          referencesText += `${i + 1}. [${url}](${url}) (accessed ${accessedStr})\n`;
+        });
+      } else {
+        referencesText = "\n\n## المراجع\n\nلا توجد مراجع مستعملة في هذا التقرير.\n";
+      }
+    }
+
+    const finalMarkdown = refined + referencesText;
+
+    res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="chat-export.md"'
+    );
+    return res.send(finalMarkdown);
+  } catch (e) {
+    console.error("Markdown generation failed:", e);
+    return res
+      .status(500)
+      .json({ error: "تعطلت خدمة إنشاء ال-Markdown مؤقتاً. جرّب بعد شوية." });
+  }
+});
+
 app.listen(3001, () => console.log("Server running on port 3001"));
