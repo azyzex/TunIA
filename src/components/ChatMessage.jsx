@@ -588,6 +588,63 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                           </div>
                         </div>
                       </div>
+                      
+                      {/* Regenerate Quiz Buttons - Only show when quiz is completed */}
+                      {quizRevealed && (
+                        <div className="text-center mt-3">
+                          <div className="d-flex gap-2 justify-content-center flex-wrap">
+                            <button
+                              type="button"
+                              className="btn btn-outline-primary btn-sm"
+                              onClick={() => {
+                                if (onConfirmQuiz && message.quizSubject) {
+                                  onConfirmQuiz({
+                                    subject: message.quizSubject,
+                                    questions: message.quizQuestions || questionsCount,
+                                    answers: message.quizAnswers || answersCount,
+                                    difficulties: message.quizDifficulties || selDifficulties,
+                                    types: message.quizTypes || selTypes,
+                                    timer: message.quizTimer || (timerEnabled ? timerMinutes : 0),
+                                    hints: message.quizHints !== undefined ? message.quizHints : hintsEnabled,
+                                    messageId: message.id
+                                  })
+                                }
+                              }}
+                              title="إنشاء اختبار جديد بنفس الموضوع والمعايير"
+                            >
+                              <i className="fas fa-redo me-1"></i>
+                              اختبار جديد (نفس المعايير)
+                            </button>
+                            
+                            <button
+                              type="button"
+                              className="btn btn-outline-secondary btn-sm"
+                              onClick={() => {
+                                // Show quiz confirmation with current parameters
+                                if (message.quizSubject) {
+                                  const confirmMsg = {
+                                    id: Date.now(),
+                                    sender: 'ai',
+                                    text: `تأكيد: تحب نعملك اختبار (أسئلة متعددة الاختيارات) على: "${message.quizSubject}"؟`,
+                                    timestamp: new Date(),
+                                    isQuizConfirm: true,
+                                    quizSubject: message.quizSubject,
+                                    quizDefaultQuestions: message.quizQuestions || 5,
+                                    quizDefaultAnswers: message.quizAnswers || 4
+                                  }
+                                  // Add the confirmation message
+                                  const event = new CustomEvent('addQuizConfirmMessage', { detail: confirmMsg })
+                                  window.dispatchEvent(event)
+                                }
+                              }}
+                              title="إنشاء اختبار جديد مع إمكانية تغيير المعايير"
+                            >
+                              <i className="fas fa-cogs me-1"></i>
+                              اختبار جديد (معايير مختلفة)
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </>

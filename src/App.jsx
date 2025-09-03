@@ -31,6 +31,22 @@ function App() {
   useEffect(() => {
     scrollToBottom()
   }, [messages])
+
+  // Event listener for quiz regeneration with custom parameters
+  useEffect(() => {
+    const handleQuizConfirmMessage = (event) => {
+      const confirmMsg = event.detail
+      setMessages(prev => [...prev, confirmMsg])
+      setQuizConfirmingId(confirmMsg.id)
+    }
+
+    window.addEventListener('addQuizConfirmMessage', handleQuizConfirmMessage)
+    
+    return () => {
+      window.removeEventListener('addQuizConfirmMessage', handleQuizConfirmMessage)
+    }
+  }, [])
+
   const handleExportPdf = async (aiMessage) => {
     try {
       // Find the immediate previous user message
@@ -311,7 +327,15 @@ async function readPDFFile(file) {
         timestamp: new Date(),
         isQuiz: true,
         quiz: Array.isArray(data.quiz) ? data.quiz : [],
-        timer: timer
+        timer: timer,
+        // Store quiz parameters for regeneration
+        quizSubject: subject,
+        quizQuestions: questions,
+        quizAnswers: answers,
+        quizDifficulties: difficulties,
+        quizTypes: types,
+        quizTimer: timer,
+        quizHints: hints
       }
       // Remove the confirm message and add the quiz
       setMessages(prev => [...prev.filter(m => m.id !== messageId), quizMessage])
