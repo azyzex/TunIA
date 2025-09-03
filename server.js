@@ -162,7 +162,7 @@ const DARIJA_STYLE_GUIDE = `
 `;
 
 app.post("/api/chat", async (req, res) => {
-  const { message, history, pdfText, webSearch, image, pdfExport, quizMode, quizQuestions, quizOptions, quizDifficulties, quizTypes, quizTimer, quizHints } =
+  const { message, history, pdfText, webSearch, image, pdfExport, quizMode, quizQuestions, quizOptions, quizDifficulties, quizTypes, quizTimer, quizHints, quizInstantFeedback } =
     req.body || {};
   const { fetchUrl } = req.body || {};
   // Language request detection (explicit instructions override Darija)
@@ -341,14 +341,14 @@ ${selectedTypes.length > 1 ? `وزع الأسئلة على الأنواع الم
 - hint: تلميحة **مفيدة حقاً** تساعد في حل السؤال. أمثلة جيدة: 
   * للـ MCQ: "تفكر في الاستعمال الأساسي..." أو "هاذا مربوط بـ..." أو "اقرا الخيار الثاني مليح"
   * للـ MCMA: "الإجابات الصحيحة عادة تكون متشابهة في..." أو "ركز على الخيارات إلي فيها كلمة..."
-  * للـ TF: "فكر: هل MongoDB نفس Excel؟" أو "هاذي الحاجة تشبه..." أو "اسأل روحك هل..."  
+  * للـ TF: "فكر: ياخي MongoDB نفس Excel؟" أو "هاذي الحاجة تشبه..." أو "اسأل روحك ياخي..."  
   * للـ FITB: "الكلمة تبدأ بـ... وعندها _ حروف" أو "مرادف لـ..." أو "ضد كلمة..."
   التلميحة لازم تعطي اتجاه واضح أو تلميح مباشر بلا ما تقول الإجابة نهائياً (بالدارجة التونسية)` : ''}
 
 أمثلة:
 MCQ: { "type": "mcq", "question": "شنوّة ...؟", "options": ["...","...","...","..."], "correctIndex": 1, "explanation": "الإجابة الثانية صحيحة خاطر..."${quizHints ? ', "hint": "اقرا الخيار الثاني مليح - فيه كلمة مهمة تبدأ بحرف \'د\'"' : ''} }
 MCMA: { "type": "mcma", "question": "أشنية من هذول ...؟", "options": ["...","...","...","..."], "correctIndices": [0,2], "explanation": "الخيارين الأول والثالث صحاح خاطر..."${quizHints ? ', "hint": "الإجابات الصحيحة عادة تكون مربوطة بالبيانات والتخزين"' : ''} }
-TF: { "type": "tf", "question": "... صحيح؟", "options": ["صحيح","غلط"], "correctIndex": 0, "explanation": "صحيح خاطر..."${quizHints ? ', "hint": "فكر: هل MongoDB يشبه Excel؟ الجواب واضح"' : ''} }
+TF: { "type": "tf", "question": "... صحيح؟", "options": ["صحيح","غلط"], "correctIndex": 0, "explanation": "صحيح خاطر..."${quizHints ? ', "hint": "فكر: ياخي MongoDB يشبه Excel؟ الجواب واضح"' : ''} }
 FITB: { "type": "fitb", "question": "... هو ___", "answerText": "الجواب", "acceptableAnswers": ["الجواب","جواب"], "explanation": "الجواب الصحيح هو 'الجواب' خاطر..."${quizHints ? ', "hint": "الكلمة عندها 6 حروف وتبدأ بـ \'ج\' وتعني النتيجة"' : ''} }
 
 الموضوع: ${subject}
@@ -519,7 +519,7 @@ ${contextSnippets.map((t,i)=>`[${i+1}] ${t}`).join('\n\n')}
               correctIndex: 0,
               explanation: enforceTunisianLexicon("صحيح خاطر أي موضوع تعليمي يكون عادة مهم للفهم والتعلم.")
             };
-            if (quizHints) result.hint = enforceTunisianLexicon("فكر: هل التعلم مهم؟ لو كان الجواب نعم، اختار \"صحيح\".");
+            if (quizHints) result.hint = enforceTunisianLexicon("فكر: ياخي التعلم مهم؟ لو كان الجواب نعم، اختار \"صحيح\".");
             return result;
           } else if (type === 'fitb') {
             const result = {
