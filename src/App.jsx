@@ -201,56 +201,17 @@ function App() {
     }));
 
   setMessages(prev => [...prev, newMessage]);
-    
-    // Read PDF file if present (before quiz mode check)
-    let pdfText = '';
-    if (file) {
-      try {
-        pdfText = await readPDFFile(file);
-      } catch (error) {
-        console.error('Error reading PDF:', error);
-      }
-    }
-
     // If quiz mode is on, show a confirmation message instead of calling the server
     if (sendQuizMode) {
-      let quizSubject = text.trim();
-      let confirmationText = '';
-      
-      // If no text but PDF is present, use PDF as the quiz source
-      if (!quizSubject && pdfText) {
-        quizSubject = 'محتوى الـ PDF المرفق'; // "Content of the attached PDF"
-        confirmationText = 'تأكيد: تحب نعملك اختبار (أسئلة متعددة الاختيارات) على محتوى الـ PDF المرفق؟';
-      } 
-      // If text is provided with or without PDF
-      else if (quizSubject) {
-        confirmationText = `تأكيد: تحب نعملك اختبار (أسئلة متعددة الاختيارات) على: "${quizSubject}"${pdfText ? ' مع محتوى الـ PDF المرفق' : ''}؟`;
-      }
-      // If neither text nor PDF
-      else {
-        // Show error message instead of confirmation
-        const errorMsg = {
-          id: Date.now(),
-          sender: 'ai',
-          text: 'عفواً، لازم تكتب موضوع الاختبار ولا تحمّل ملف PDF باش نقدر نعملك اختبار.',
-          timestamp: new Date()
-        }
-        setMessages(prev => [...prev, errorMsg]);
-        setIsLoading(false);
-        return;
-      }
-      
       const confirmMsg = {
         id: Date.now(),
         sender: 'ai',
-        text: confirmationText,
+        text: `تأكيد: تحب نعملك اختبار (أسئلة متعددة الاختيارات) على: "${text}"؟` ,
         timestamp: new Date(),
         isQuizConfirm: true,
-        quizSubject: quizSubject,
+        quizSubject: text,
         quizDefaultQuestions: 5,
-        quizDefaultAnswers: 4,
-        // Store PDF text for quiz generation
-        pdfText: pdfText
+        quizDefaultAnswers: 4
       }
       setMessages(prev => [...prev, confirmMsg])
       setQuizConfirmingId(confirmMsg.id)
@@ -260,6 +221,11 @@ function App() {
     setIsLoading(true);
 
     try {
+      let pdfText = '';
+      if (file) {
+        // Read PDF file as text using PDF.js
+        pdfText = await readPDFFile(file);
+      }
       console.log('Sending to server:', {
         messageLen: text?.length || 0,
         historyCount: history.length,
@@ -270,15 +236,7 @@ function App() {
       const res = await fetch('http://localhost:3001/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          message: text, 
-          history, 
-          pdfText: pdfText || '', // Ensure it's never undefined
-          webSearch, 
-          fetchUrl, 
-          image, 
-          pdfExport 
-        })
+        body: JSON.stringify({ message: text, history, pdfText, webSearch, fetchUrl, image, pdfExport })
       });
       const data = await res.json();
       if (!res.ok) {
@@ -351,16 +309,8 @@ async function readPDFFile(file) {
 
 
   // Quiz confirm handlers
-  const handleConfirmQuiz = async ({ subject, questions, answers, difficulties = ['medium'], types = ['mcq'], timer = null, hints = false, instantFeedback = true, messageId }) => {
+  const handleConfirmQuiz = async ({ subject, questions, answers, difficulties = ['medium'], types = ['mcq'], timer = null, hints = false, messageId }) => {
     setQuizGenerating(true)
-    
-    // Find the confirming message to get PDF text if available
-    const confirmingMessage = messages.find(m => m.id === messageId);
-    const pdfText = confirmingMessage?.pdfText || '';
-    
-    console.log('🎯 Quiz confirmation - PDF text length:', pdfText.length);
-    console.log('🎯 Quiz confirmation - PDF preview:', pdfText.substring(0, 100));
-    
     try {
       const res = await fetch('http://localhost:3001/api/chat', {
         method: 'POST',
@@ -368,7 +318,6 @@ async function readPDFFile(file) {
         body: JSON.stringify({
           message: subject,
           history: messages.slice(-30).map(m => ({ sender: m.sender, text: m.text })),
-          pdfText: pdfText, // Include PDF text for quiz generation
           quizMode: true,
           quizQuestions: questions,
           quizOptions: answers,
@@ -376,7 +325,6 @@ async function readPDFFile(file) {
           quizTypes: types,
           quizTimer: timer,
           quizHints: hints,
-          quizInstantFeedback: instantFeedback,
           webSearch: true,
           fetchUrl: true
         })
@@ -391,7 +339,6 @@ async function readPDFFile(file) {
         isQuiz: true,
         quiz: Array.isArray(data.quiz) ? data.quiz : [],
         timer: timer,
-        instantFeedback: instantFeedback,
         // Store quiz parameters for regeneration
         quizSubject: subject,
         quizQuestions: questions,
@@ -399,8 +346,7 @@ async function readPDFFile(file) {
         quizDifficulties: difficulties,
         quizTypes: types,
         quizTimer: timer,
-        quizHints: hints,
-        quizInstantFeedback: instantFeedback
+        quizHints: hints
       }
       // Remove the confirm message and add the quiz
       setMessages(prev => [...prev.filter(m => m.id !== messageId), quizMessage])
