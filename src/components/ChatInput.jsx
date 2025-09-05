@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react'
-import { motion } from 'framer-motion'
-import { Send, Upload, FileText, X, Plus, Search, Image as ImageIcon, ListChecks } from 'lucide-react'
+import React, { useState, useRef, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Send, Plus, FileText, X, Search, Image as ImageIcon, ListChecks } from 'lucide-react'
 
 const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizMode = () => {} }) => {
   const [inputText, setInputText] = useState('')
@@ -8,9 +8,26 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
   const [toolMenuOpen, setToolMenuOpen] = useState(false)
   const [combinedToolEnabled, setCombinedToolEnabled] = useState(false)
   const [selectedImage, setSelectedImage] = useState(null) // { file, previewUrl, mimeType, base64 }
-  // quizMode is lifted to App via props
+  const [isCentered, setIsCentered] = useState(true) // For ChatGPT-like centered input when empty
   const fileInputRef = useRef(null)
   const imageInputRef = useRef(null)
+  
+  // Move input to bottom if messages exist
+  useEffect(() => {
+    const checkForMessages = () => {
+      const messageElements = document.querySelectorAll('.message-bubble');
+      if (messageElements.length > 0) {
+        setIsCentered(false);
+      }
+    };
+    
+    // Check once on mount
+    checkForMessages();
+    
+    // Also set up a small delay to catch any messages that might render after this component
+    const timer = setTimeout(checkForMessages, 100);
+    return () => clearTimeout(timer);
+  }, [])
 
   const handleSend = () => {
     // Allow sending in quiz mode if there's a PDF file (even without text)
@@ -19,26 +36,58 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
     
     if (!hasContent && !canSendQuizWithPdf) return
     
-    onSendMessage({
-      text: inputText,
-      file: selectedFile,
-  image: selectedImage ? { data: selectedImage.base64, mimeType: selectedImage.mimeType, previewUrl: selectedImage.previewUrl } : null,
-      webSearch: combinedToolEnabled,
-      fetchUrl: combinedToolEnabled,
-      quizMode
-    })
+    // If input is centered, animate the transition to bottom first
+    if (isCentered) {
+      setIsCentered(false);
+      
+      // Small delay to let the animation finish before adding the message
+      setTimeout(() => {
+        onSendMessage({
+          text: inputText,
+          file: selectedFile,
+          image: selectedImage ? { data: selectedImage.base64, mimeType: selectedImage.mimeType, previewUrl: selectedImage.previewUrl } : null,
+          webSearch: combinedToolEnabled,
+          fetchUrl: combinedToolEnabled,
+          quizMode
+        });
+        
+        setInputText('');
+        setSelectedFile(null);
+        setSelectedImage(null);
+        
+        // Reset file inputs
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        if (imageInputRef.current) {
+          imageInputRef.current.value = '';
+        }
+      }, 400); // Match this delay with the animation duration
+    } else {
+      // If already at bottom, send immediately
+      onSendMessage({
+        text: inputText,
+        file: selectedFile,
+        image: selectedImage ? { data: selectedImage.base64, mimeType: selectedImage.mimeType, previewUrl: selectedImage.previewUrl } : null,
+        webSearch: combinedToolEnabled,
+        fetchUrl: combinedToolEnabled,
+        quizMode
+      });
+      
+      setInputText('');
+      setSelectedFile(null);
+      setSelectedImage(null);
+      
+      // Reset file inputs
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      if (imageInputRef.current) {
+        imageInputRef.current.value = '';
+      }
+    }
     
-    setInputText('')
-    setSelectedFile(null)
-    setSelectedImage(null)
-  // Keep combinedToolEnabled persistent - don't reset it
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
-    }
-    if (imageInputRef.current) {
-      imageInputRef.current.value = ''
-    }
-  // Keep combinedToolEnabled and quizMode persistent
+    // Keep combinedToolEnabled and quizMode persistent
   }
 
   const handleFileSelect = (event) => {
@@ -120,14 +169,25 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
 
   return (
     <motion.div 
-      initial={{ y: 20, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      className="glass-effect fixed-bottom p-3 border-top"
-      style={{ zIndex: 1020 }}
+      initial={isCentered ? { y: 0, opacity: 0 } : { y: 20, opacity: 0 }}
+      animate={isCentered ? 
+        { y: 0, opacity: 1, transition: { duration: 0.4 } } : 
+        { y: 0, opacity: 1, transition: { duration: 0.3 } }
+      }
+      layout // This enables automatic animation when props change
+      className={isCentered ? "position-absolute start-50" : "fixed-bottom mb-4"}
+      style={{ 
+        zIndex: 1020,
+        width: '100%',
+        maxWidth: '650px',
+        left: '50%',
+        top: isCentered ? '50%' : 'auto',
+        transform: isCentered ? 'translate(-50%, -50%)' : 'translateX(-50%)'
+      }}
     >
-      <div className="container-fluid">
+      <div className="container-fluid px-0">
         <div className="row justify-content-center">
-          <div className="col-lg-8 col-xl-6">
+          <div className="col-12">
             {/* Selected File Display */}
             {selectedFile && (
               <motion.div
@@ -156,36 +216,57 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
               </motion.div>
             )}
 
-            {/* Input Bar */}
-            <div className="d-flex align-items-end gap-3">
-              <div className="flex-grow-1 position-relative">
-                {/* Selected Image Display */}
-                {selectedImage && (
-                  <motion.div
-                    initial={{ scale: 0.9, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="mb-3 p-2 bg-light border border-primary rounded-3 d-flex align-items-center justify-content-between"
-                  >
-                    <div className="d-flex align-items-center">
-                      <img src={selectedImage.previewUrl} alt="selected" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 6 }} className="me-2" />
-                      <div>
-                        <div className="fw-medium text-dark" style={{ fontSize: '0.85rem' }}>
-                          {selectedImage.file.name}
-                        </div>
-                        <small className="text-primary">
-                          {(selectedImage.file.size / 1024 / 1024).toFixed(2)} MB
-                        </small>
+            {/* Input Bar - ChatGPT-like design */}
+            <div className="position-relative">
+              {/* Selected Image Display */}
+              {selectedImage && (
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="mb-3 p-2 bg-light border border-primary rounded-3 d-flex align-items-center justify-content-between"
+                >
+                  <div className="d-flex align-items-center">
+                    <img src={selectedImage.previewUrl} alt="selected" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 6 }} className="me-2" />
+                    <div>
+                      <div className="fw-medium text-dark" style={{ fontSize: '0.85rem' }}>
+                        {selectedImage.file.name}
                       </div>
+                      <small className="text-primary">
+                        {(selectedImage.file.size / 1024 / 1024).toFixed(2)} MB
+                      </small>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => { setSelectedImage(null); if (imageInputRef.current) imageInputRef.current.value = '' }}
-                      className="btn btn-sm btn-outline-primary"
-                    >
-                      <X size={16} />
-                    </button>
-                  </motion.div>
-                )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedImage(null); if (imageInputRef.current) imageInputRef.current.value = '' }}
+                    className="btn btn-sm btn-outline-primary"
+                  >
+                    <X size={16} />
+                  </button>
+                </motion.div>
+              )}
+              
+              {/* ChatGPT-like input with shadow */}
+              <div className="rounded-pill d-flex align-items-center bg-white shadow" 
+                   style={{ 
+                     boxShadow: '0 1px 10px rgba(0, 0, 0, 0.10)', 
+                     border: '1px solid #e0e0e0',
+                     overflow: 'hidden'
+                   }}>
+                {/* Only Plus button on left */}
+                <div className="d-flex align-items-center" style={{ padding: '8px 0 8px 16px' }}>
+                  <button
+                    type="button"
+                    className={`btn btn-sm rounded-circle ${toolMenuOpen ? 'bg-light' : ''}`}
+                    onClick={() => setToolMenuOpen(v => !v)}
+                    style={{ width: '32px', height: '32px', padding: '4px' }}
+                    disabled={disabled}
+                  >
+                    <Plus size={18} />
+                  </button>
+                </div>
+                
+                {/* Text input */}
                 <textarea
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
@@ -200,90 +281,100 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
                       ? (selectedFile 
                           ? "اكتب موضوع الاختبار (اختياري - يمكنك الضغط على الإرسال مباشرة لإنشاء اختبار من الـ PDF)"
                           : "اكتب موضوع الاختبار أو حمّل ملف PDF")
-                      : "اكتب سؤالك هنا بالدارجة التونسية..."
+                      : "اكتب سؤالك هنا..."
                   }
-                  className="form-control chat-input border-0 shadow-sm"
+                  className="form-control border-0 flex-grow-1"
                   style={{ 
                     resize: 'none', 
+                    boxShadow: 'none',
+                    background: 'transparent',
                     minHeight: '48px', 
-                    maxHeight: '128px',
-                    paddingLeft: '50px',
-                    borderRadius: '24px'
+                    maxHeight: '120px',
+                    paddingLeft: '8px',
+                    paddingRight: '8px',
+                    paddingTop: '12px',
+                    paddingBottom: '12px',
+                    fontSize: '14px',
+                    textAlign: 'center' /* Center-aligned text instead of right-aligned */
                   }}
                   rows={1}
                   disabled={disabled}
                 />
-                <div
-                  className="position-absolute"
-                  style={{ left: '8px', top: '50%', transform: 'translateY(-50%)' }}
+                
+                {/* Send button */}
+                <button
+                  onClick={handleSend}
+                  disabled={disabled || (() => {
+                    const hasContent = inputText.trim() || selectedFile || selectedImage;
+                    const canSendQuizWithPdf = quizMode && selectedFile && selectedFile.type === 'application/pdf';
+                    return !hasContent && !canSendQuizWithPdf;
+                  })()}
+                  className="btn d-flex align-items-center justify-content-center me-2"
+                  style={{ 
+                    width: '36px', 
+                    height: '36px',
+                    borderRadius: '50%',
+                    backgroundColor: disabled ? '#e0e0e0' : '#10a37f',
+                    color: 'white'
+                  }}
                 >
-                  <div className="dropdown dropup">
-                    <button
-                      type="button"
-                      className="btn btn-link text-muted p-0 dropdown-toggle"
-                      onClick={() => setToolMenuOpen(v => !v)}
-                      aria-expanded={toolMenuOpen}
-                      disabled={disabled}
-                      style={{ width: '32px', height: '32px' }}
-                    >
-                      <Plus size={20} />
-                    </button>
-                    {toolMenuOpen && (
-                      <div
-                        className="dropdown-menu show"
-                        style={{ minWidth: '200px', top: 'auto', bottom: '110%' }}
-                      >
-                        <button className="dropdown-item d-flex align-items-center" type="button" onClick={openFilePicker} disabled={disabled}>
-                          <Upload size={16} className="me-2" />
-                          رفع ملف PDF
-                        </button>
-                        <button className="dropdown-item d-flex align-items-center" type="button" onClick={openImagePicker} disabled={disabled}>
-                          <ImageIcon size={16} className="me-2" />
-                          رفع صورة
-                        </button>
-                        <button className="dropdown-item d-flex align-items-center" type="button" onClick={toggleCombinedTool} disabled={disabled}>
-                          <Search size={16} className="me-2" />
-                          بحث الويب + جلب الرابط {combinedToolEnabled ? '✓' : ''}
-                        </button>
-                        <button className="dropdown-item d-flex align-items-center" type="button" onClick={() => {
-                          // Allow quiz mode to work with other tools (especially PDF upload)
-                          const next = !quizMode
-                          if (next) {
-                            // Only clear web search when enabling quiz mode
-                            // Keep PDF files and images as they can be used for quiz generation
-                            setCombinedToolEnabled(false)
-                          }
-                          setQuizMode(next)
-                          setToolMenuOpen(false)
-                        }} disabled={disabled}>
-                          <ListChecks size={16} className="me-2" />
-                          إنشاء اختبار {quizMode ? '✓' : ''}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                  <Send size={18} />
+                </button>
               </div>
               
-              <motion.button
-                whileHover={{ scale: disabled ? 1 : 1.05 }}
-                whileTap={{ scale: disabled ? 1 : 0.95 }}
-                onClick={handleSend}
-                disabled={disabled || (() => {
-                  const hasContent = inputText.trim() || selectedFile || selectedImage;
-                  const canSendQuizWithPdf = quizMode && selectedFile && selectedFile.type === 'application/pdf';
-                  return !hasContent && !canSendQuizWithPdf;
-                })()}
-                className="btn tunisian-primary text-white shadow-sm d-flex align-items-center justify-content-center"
-                style={{ 
-                  width: '48px', 
-                  height: '48px',
-                  borderRadius: '24px',
-                  border: 'none'
-                }}
-              >
-                <Send size={20} />
-              </motion.button>
+              {/* Dropdown menu with animation */}
+              <AnimatePresence>
+                {toolMenuOpen && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 10 }}
+                    transition={{ duration: 0.2 }}
+                    className="position-absolute bg-white rounded shadow-sm p-2 mt-1" 
+                    style={{ zIndex: 1030, width: '200px', left: '16px', bottom: '100%', marginBottom: '10px' }}
+                  >
+                    <button className="dropdown-item d-flex align-items-center py-2" type="button" onClick={openFilePicker} disabled={disabled}>
+                      <FileText size={16} className="me-2" />
+                      رفع ملف PDF
+                    </button>
+                    <button className="dropdown-item d-flex align-items-center py-2" type="button" onClick={openImagePicker} disabled={disabled}>
+                      <ImageIcon size={16} className="me-2" />
+                      رفع صورة
+                    </button>
+                    <button 
+                      className="dropdown-item d-flex align-items-center justify-content-between py-2" 
+                      type="button" 
+                      onClick={toggleCombinedTool} 
+                      disabled={disabled}
+                    >
+                      <span className="d-flex align-items-center">
+                        <Search size={16} className="me-2" />
+                        بحث الويب
+                      </span>
+                      {combinedToolEnabled && <span className="badge bg-primary rounded-pill">مفعل</span>}
+                    </button>
+                    <button 
+                      className="dropdown-item d-flex align-items-center justify-content-between py-2" 
+                      type="button" 
+                      onClick={() => {
+                        const next = !quizMode;
+                        if (next) {
+                          setCombinedToolEnabled(false);
+                        }
+                        setQuizMode(next);
+                        setToolMenuOpen(false);
+                      }} 
+                      disabled={disabled}
+                    >
+                      <span className="d-flex align-items-center">
+                        <ListChecks size={16} className="me-2" />
+                        إنشاء اختبار
+                      </span>
+                      {quizMode && <span className="badge bg-primary rounded-pill">مفعل</span>}
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             <input
@@ -302,12 +393,42 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
               className="d-none"
               disabled={combinedToolEnabled}
             />
-            {combinedToolEnabled && (
-              <div className="mt-2 small text-primary">باش نخدم بحث على الويب ونجيب محتوى أي رابط تكتبّو في سؤالك.</div>
-            )}
-            {quizMode && (
-              <div className="mt-2 small text-primary">باش نعملك اختبار (أسئلة متعددة الخيارات) على الموضوع إلي كتبتو.</div>
-            )}
+            <AnimatePresence>
+              {combinedToolEnabled && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="mt-2 small text-center text-primary">
+                  باش نخدم بحث على الويب ونجيب محتوى أي رابط تكتبّو في سؤالك.
+                </motion.div>
+              )}
+              {quizMode && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="mt-2 small text-center text-primary">
+                  باش نعملك اختبار (أسئلة متعددة الخيارات) على الموضوع إلي كتبتو.
+                </motion.div>
+              )}
+            </AnimatePresence>
+            
+            {/* Hidden file inputs */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf"
+              onChange={handleFileSelect}
+              className="d-none"
+            />
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/jpg"
+              onChange={handleImageSelect}
+              className="d-none"
+            />
           </div>
         </div>
       </div>

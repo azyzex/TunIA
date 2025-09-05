@@ -12,7 +12,7 @@ import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
 function App() {
-  const [showWelcome, setShowWelcome] = useState(true)
+  // Remove showWelcome state since we're skipping the welcome screen
   const [messages, setMessages] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [editModal, setEditModal] = useState({ open: false, message: null })
@@ -161,7 +161,7 @@ function App() {
   }
 
   const startChat = (initialMessage = null) => {
-    setShowWelcome(false)
+    // Removed setShowWelcome call since we're skipping welcome screen
     
     // Add welcome message from AI
     const welcomeMessage = {
@@ -373,9 +373,7 @@ async function readPDFFile(file) {
     setQuizMode(false)
   }
 
-  if (showWelcome) {
-    return <WelcomeScreen onStartChat={startChat} />
-  }
+  // Removed welcome screen conditional - we go straight to chat
 
   // Retry handler: remove the AI message, resend the previous user message, and track retry count
   const handleRetry = async (aiMessage) => {
@@ -464,7 +462,7 @@ async function readPDFFile(file) {
 
   return (
     <div className="min-vh-100 tunisian-bg">
-      <ChatHeader />
+      {/* Removed ChatHeader - clean minimalist design like ChatGPT */}
       {/* Edit Modal */}
       {editModal.open && (
         <div className="modal show d-block" tabIndex="-1" style={{ background: 'rgba(0,0,0,0.2)' }}>
@@ -486,7 +484,7 @@ async function readPDFFile(file) {
         </div>
       )}
       {/* Chat Container */}
-      <div className="container-fluid px-4 pb-50 chat-container" style={{ paddingTop: '100px', paddingBottom: '200px' }}>
+      <div className="container-fluid px-4 pb-50 chat-container" style={{ paddingTop: '40px', paddingBottom: '100px' }}>
         <div className="row justify-content-center">
           <div className="col-lg-8 col-xl-6">
             <AnimatePresence>
