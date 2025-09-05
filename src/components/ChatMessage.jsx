@@ -749,6 +749,10 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                   id={`timer-switch-${message.id}`}
                   checked={timerEnabled}
                   onChange={(e) => setTimerEnabled(e.target.checked)}
+                  style={{
+                    backgroundColor: timerEnabled ? '#ee6060' : '#cec5bf',
+                    borderColor: '#ee6060'
+                  }}
                 />
                 <label className="form-check-label" htmlFor={`timer-switch-${message.id}`}>
                   مؤقت
@@ -778,6 +782,10 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                   id={`hints-switch-${message.id}`}
                   checked={hintsEnabled}
                   onChange={(e) => setHintsEnabled(e.target.checked)}
+                  style={{
+                    backgroundColor: hintsEnabled ? '#ee6060' : '#cec5bf',
+                    borderColor: '#ee6060'
+                  }}
                 />
                 <label className="form-check-label" htmlFor={`hints-switch-${message.id}`}>
                   تلميحات
@@ -786,7 +794,8 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
             </div>
             <button
               type="button"
-              className="btn btn-success d-flex align-items-center gap-2"
+              className="btn d-flex align-items-center gap-2"
+              style={{ backgroundColor: '#ee6060', borderColor: '#ee6060', color: '#fff5ed' }}
               onClick={() => {
                 const questions = Math.max(2, Math.min(40, questionsCount))
                 const answers = Math.max(2, Math.min(5, answersCount))
@@ -838,6 +847,10 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                 id={`citations-switch-${message.id}`}
                 checked={includeCitations}
                 onChange={(e) => setIncludeCitations(e.target.checked)}
+                style={{
+                  backgroundColor: includeCitations ? '#ee6060' : '#cec5bf',
+                  borderColor: '#ee6060'
+                }}
               />
               <label className="form-check-label ms-2" htmlFor={`citations-switch-${message.id}`}>
                 المراجع
@@ -862,7 +875,8 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
           
           <button
             type="button"
-            className="btn btn-success d-flex align-items-center gap-2"
+            className="btn d-flex align-items-center gap-2"
+            style={{ backgroundColor: '#ee6060', borderColor: '#ee6060', color: '#fff5ed' }}
             onClick={() => onConfirmPdfDownload && onConfirmPdfDownload(message.pdfData, message.id, includeCitations, exportFormat)}
             disabled={downloadingPdf === message.id}
           >
