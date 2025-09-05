@@ -258,8 +258,8 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                       }
                       return (
                         <div className="position-relative">
-                          <pre className="bg-light p-2 rounded text-start" style={{ fontSize: '0.92rem', overflowX: 'auto', direction: 'ltr' }}>
-                            <code className={className} {...props}>{children}</code>
+                          <pre className="p-2 rounded text-start" style={{ fontSize: '0.92rem', overflowX: 'auto', direction: 'ltr', backgroundColor: '#eee4dd', color: '#89837f' }}>
+                            <code className={className} {...props} style={{ color: '#89837f' }}>{children}</code>
                           </pre>
                           <button 
                             onClick={() => copyToClipboard(codeString)}
@@ -356,8 +356,8 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
               }
               return (
                 <div className="position-relative">
-                  <pre className="bg-light p-2 rounded text-start" style={{ fontSize: '0.92rem', overflowX: 'auto', direction: 'ltr' }}>
-                    <code className={className} {...props}>{children}</code>
+                  <pre className="p-2 rounded text-start" style={{ fontSize: '0.92rem', overflowX: 'auto', direction: 'ltr', backgroundColor: '#eee4dd', color: '#89837f' }}>
+                    <code className={className} {...props} style={{ color: '#89837f' }}>{children}</code>
                   </pre>
                   <button 
                     onClick={() => copyToClipboard(codeString)}
@@ -408,18 +408,29 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                     <div className="mb-2">
                       <button
                         type="button"
-                        className="btn btn-outline-info btn-sm"
+                        className="btn btn-sm"
                         onClick={() => {
                           const next = [...hintsVisible]
                           next[qi] = !next[qi]
                           setHintsVisible(next)
                         }}
-                        style={{ fontSize: '0.8rem' }}
+                        style={{ 
+                          fontSize: '0.8rem',
+                          backgroundColor: '#fff5ed',
+                          borderColor: '#ee6060',
+                          color: '#ee6060'
+                        }}
                       >
                         💡 {hintsVisible[qi] ? 'إخفاء التلميحة' : 'إظهار تلميحة'}
                       </button>
                       {hintsVisible[qi] && (
-                        <div className="mt-2 p-2 bg-light rounded" style={{ fontSize: '0.85rem', color: '#666', fontStyle: 'italic' }}>
+                        <div className="mt-2 p-2 rounded" style={{ 
+                          fontSize: '0.85rem', 
+                          color: '#89837f', 
+                          fontStyle: 'italic',
+                          backgroundColor: '#eee4dd',
+                          border: '1px solid #cec5bf'
+                        }}>
                           {q.hint}
                         </div>
                       )}
@@ -448,7 +459,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                         } : {}}
                       />
                       {quizRevealed && (
-                        <small className="text-muted">الإجابة الصحيحة: <strong>{q.answerText}</strong></small>
+                        <small style={{ color: '#89837f' }}>الإجابة الصحيحة: <strong>{q.answerText}</strong></small>
                       )}
                     </div>
                   ) : (
@@ -460,17 +471,22 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                           const selected = selectedArr.includes(oi)
                           const isCorrect = Array.isArray(q.correctIndices) ? q.correctIndices.includes(oi) : false
                           const bg = show
-                            ? (isCorrect ? 'rgba(25,135,84,0.15)' : (selected ? 'rgba(220,53,69,0.15)' : 'transparent'))
-                            : (selected ? 'rgba(13,110,253,0.12)' : 'transparent')
+                            ? (isCorrect ? 'rgba(238,96,96,0.15)' : (selected ? 'rgba(238,96,96,0.25)' : '#fff5ed'))
+                            : (selected ? 'rgba(238,96,96,0.12)' : '#fff5ed')
                           const border = show
-                            ? (isCorrect ? '1px solid #198754' : (selected ? '1px solid #dc3545' : '1px solid #dee2e6'))
-                            : (selected ? '1px solid #0d6efd' : '1px solid #dee2e6')
+                            ? (isCorrect ? '1px solid #ee6060' : (selected ? '1px solid #ee6060' : '1px solid #cec5bf'))
+                            : (selected ? '1px solid #ee6060' : '1px solid #cec5bf')
                           return (
                             <button
                               key={oi}
                               type="button"
                               className="btn text-start"
-                              style={{ background: bg, border, borderRadius: 8 }}
+                              style={{ 
+                                background: bg, 
+                                border, 
+                                borderRadius: 8,
+                                color: '#89837f'
+                              }}
                               onClick={() => {
                                 if (quizRevealed || (message.timer && timeRemaining <= 0)) return
                                 const next = [...quizSelections]
@@ -492,17 +508,22 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                           const selected = quizSelections[qi] === oi
                           const isCorrect = q.correctIndex === oi
                           const bg = show
-                            ? (isCorrect ? 'rgba(25,135,84,0.15)' : (selected ? 'rgba(220,53,69,0.15)' : 'transparent'))
-                            : (selected ? 'rgba(13,110,253,0.12)' : 'transparent')
+                            ? (isCorrect ? 'rgba(238,96,96,0.15)' : (selected ? 'rgba(238,96,96,0.25)' : '#fff5ed'))
+                            : (selected ? 'rgba(238,96,96,0.12)' : '#fff5ed')
                           const border = show
-                            ? (isCorrect ? '1px solid #198754' : (selected ? '1px solid #dc3545' : '1px solid #dee2e6'))
-                            : (selected ? '1px solid #0d6efd' : '1px solid #dee2e6')
+                            ? (isCorrect ? '1px solid #ee6060' : (selected ? '1px solid #ee6060' : '1px solid #cec5bf'))
+                            : (selected ? '1px solid #ee6060' : '1px solid #cec5bf')
                           return (
                             <button
                               key={oi}
                               type="button"
                               className="btn text-start"
-                              style={{ background: bg, border, borderRadius: 8 }}
+                              style={{ 
+                                background: bg, 
+                                border, 
+                                borderRadius: 8,
+                                color: '#89837f'
+                              }}
                               onClick={() => {
                                 if (quizRevealed || (message.timer && timeRemaining <= 0)) return
                                 const next = [...quizSelections]
