@@ -168,25 +168,38 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
 
 
   return (
-    <motion.div 
-      initial={isCentered ? { y: 0, opacity: 0 } : { y: 20, opacity: 0 }}
-      animate={isCentered ? 
-        { y: 0, opacity: 1, transition: { duration: 0.4 } } : 
-        { y: 0, opacity: 1, transition: { duration: 0.3 } }
-      }
-      layout // This enables automatic animation when props change
-      className={isCentered ? "position-absolute" : "fixed-bottom mb-4"}
-      style={{ 
-        zIndex: 1030,
-        width: '100%',
-        maxWidth: '650px',
-        left: '50%',
-        right: '50%',
-        marginLeft: '-325px', /* Half of maxWidth for perfect centering */
-        top: isCentered ? '35%' : 'auto',
-        transform: isCentered ? 'translateY(-50%)' : 'none'
-      }}
-    >
+    <>
+      {/* Blur bottom bar to hide content below text zone - placed outside main container */}
+      <div
+        className="fixed-bottom w-100"
+        style={{
+          height: '60px',
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)',
+          zIndex: 1025, // Higher than content but lower than text zone
+          pointerEvents: 'none',
+        }}
+      ></div>
+
+      <motion.div 
+        initial={isCentered ? { y: 0, opacity: 0 } : { y: 20, opacity: 0 }}
+        animate={isCentered ? 
+          { y: 0, opacity: 1, transition: { duration: 0.4 } } : 
+          { y: 0, opacity: 1, transition: { duration: 0.3 } }
+        }
+        layout // This enables automatic animation when props change
+        className={isCentered ? "position-absolute" : "fixed-bottom mb-4"}
+        style={{ 
+          zIndex: 1030, // Text zone on top
+          width: '100%',
+          maxWidth: '733px',
+          left: '50%',
+          right: '50%',
+          marginLeft: '-366.5px', /* Half of maxWidth for perfect centering */
+          top: isCentered ? '35%' : 'auto',
+          transform: isCentered ? 'translateY(-50%)' : 'none'
+        }}
+      >
       {/* Welcome message - only shown when centered */}
       {isCentered && (
         <motion.h2 
@@ -290,7 +303,7 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
                      border: '1px solid #cec5bf', /* Darker border color */
                      overflow: 'hidden',
                      width: '100%',
-                     maxWidth: '650px',
+                     maxWidth: '1200px',
                      margin: '0 auto',
                      backgroundColor: '#fff5ed' /* Light background from our palette */
                    }}>
@@ -498,19 +511,8 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
           </div>
         </div>
       </div>
-
-      {/* Blur bottom bar to hide content below text zone */}
-      <div
-        className="fixed-bottom w-100"
-        style={{
-          height: '100px', // increased height for better coverage
-          backdropFilter: 'blur(10px)',
-          WebkitBackdropFilter: 'blur(10px)', // Safari support
-          zIndex: 1020, // behind the text zone
-          pointerEvents: 'none',
-        }}
-      ></div>
     </motion.div>
+    </>
   )
 }
 
