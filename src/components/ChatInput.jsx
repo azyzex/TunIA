@@ -177,7 +177,7 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
       layout // This enables automatic animation when props change
       className={isCentered ? "position-absolute" : "fixed-bottom mb-4"}
       style={{ 
-        zIndex: 1020,
+        zIndex: 1030,
         width: '100%',
         maxWidth: '650px',
         left: '50%',
@@ -475,7 +475,7 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
                   exit={{ opacity: 0 }}
                   className="mt-2 small text-center"
                   style={{ color: '#ee6060' }}>
-                  باش نعملك اختبار (أسئلة متعددة الخيارات) على الموضوع إلي كتبتو.
+                  باش نعملك اختبار على الموضوع إلي كتبتو.
                 </motion.div>
               )}
             </AnimatePresence>
@@ -498,6 +498,18 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
           </div>
         </div>
       </div>
+
+      {/* Blur bottom bar to hide content below text zone */}
+      <div
+        className="fixed-bottom w-100"
+        style={{
+          height: '100px', // increased height for better coverage
+          backdropFilter: 'blur(10px)',
+          WebkitBackdropFilter: 'blur(10px)', // Safari support
+          zIndex: 1020, // behind the text zone
+          pointerEvents: 'none',
+        }}
+      ></div>
     </motion.div>
   )
 }
