@@ -175,18 +175,20 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
         { y: 0, opacity: 1, transition: { duration: 0.3 } }
       }
       layout // This enables automatic animation when props change
-      className={isCentered ? "position-absolute start-50" : "fixed-bottom mb-4"}
+      className={isCentered ? "position-absolute" : "fixed-bottom mb-4"}
       style={{ 
         zIndex: 1020,
         width: '100%',
         maxWidth: '650px',
         left: '50%',
+        right: '50%',
+        marginLeft: '-325px', /* Half of maxWidth for perfect centering */
         top: isCentered ? '50%' : 'auto',
-        transform: isCentered ? 'translate(-50%, -50%)' : 'translateX(-50%)'
+        transform: isCentered ? 'translateY(-50%)' : 'none'
       }}
     >
-      <div className="container-fluid px-0">
-        <div className="row justify-content-center">
+      <div className="container-fluid p-0">
+        <div className="row justify-content-center g-0">
           <div className="col-12">
             {/* Selected File Display */}
             {selectedFile && (
@@ -249,9 +251,12 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
               {/* ChatGPT-like input with shadow */}
               <div className="rounded-pill d-flex align-items-center bg-white shadow" 
                    style={{ 
-                     boxShadow: '0 1px 10px rgba(0, 0, 0, 0.10)', 
-                     border: '1px solid #e0e0e0',
-                     overflow: 'hidden'
+                     boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)', 
+                     border: '1px solid #e9e9e9',
+                     overflow: 'hidden',
+                     width: '100%',
+                     maxWidth: '650px',
+                     margin: '0 auto'
                    }}>
                 {/* Only Plus button on left */}
                 <div className="d-flex align-items-center" style={{ padding: '8px 0 8px 16px' }}>
@@ -295,7 +300,8 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
                     paddingTop: '12px',
                     paddingBottom: '12px',
                     fontSize: '14px',
-                    textAlign: 'center' /* Center-aligned text instead of right-aligned */
+                    textAlign: 'right', /* Right-aligned for Arabic text */
+                    direction: 'rtl' /* Ensure proper RTL text flow */
                   }}
                   rows={1}
                   disabled={disabled}
