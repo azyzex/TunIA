@@ -183,7 +183,7 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
         left: '50%',
         right: '50%',
         marginLeft: '-325px', /* Half of maxWidth for perfect centering */
-        top: isCentered ? '50%' : 'auto',
+        top: isCentered ? '35%' : 'auto',
         transform: isCentered ? 'translateY(-50%)' : 'none'
       }}
     >
