@@ -2,7 +2,7 @@
 
 body {
   font-family: 'Noto Sans Arabic', system-ui, -apple-system, sans-serif;
-  background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%);
+  background: #89837f; /* New background color */
   min-height: 100vh;
 }
 
@@ -20,8 +20,8 @@ body {
 .glass-effect {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(238, 228, 221, 0.8); /* Lighter #eee4dd with opacity */
+  border: 1px solid rgba(206, 197, 191, 0.3); /* #cec5bf with opacity */
 }
 
 .chat-bubble {
@@ -33,17 +33,17 @@ body {
 }
 
 .chat-bubble-user {
-  background: linear-gradient(135deg, #007bff, #0056b3);
+  background: #ee6060; /* Main color for user messages */
   color: white;
   margin-left: auto;
   border-bottom-right-radius: 8px;
 }
 
 .chat-bubble-ai {
-  background: white;
+  background: #fff5ed; /* Light background for AI messages */
   color: #333;
   margin-right: auto;
-  border: 1px solid #e9ecef;
+  border: 1px solid #eee4dd;
   border-bottom-left-radius: 8px;
 }
 

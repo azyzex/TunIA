@@ -187,6 +187,23 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
         transform: isCentered ? 'translateY(-50%)' : 'none'
       }}
     >
+      {/* Welcome message - only shown when centered */}
+      {isCentered && (
+        <motion.h2 
+          className="text-center mb-4 fw-normal" 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.5 }}
+          style={{ 
+            color: '#fff5ed', /* Using our light color from the palette */
+            fontSize: '28px',
+            textShadow: '0 1px 3px rgba(0,0,0,0.3)'
+          }}
+        >
+          شنوة جديدك يا معلم
+        </motion.h2>
+      )}
+      
       <div className="container-fluid p-0">
         <div className="row justify-content-center g-0">
           <div className="col-12">
@@ -195,15 +212,20 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
               <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                className="mb-3 p-3 bg-light border border-primary rounded-3 d-flex align-items-center justify-content-between"
+                className="mb-3 p-3 rounded-3 d-flex align-items-center justify-content-between"
+                style={{ 
+                  backgroundColor: '#eee4dd', 
+                  border: '1px solid #cec5bf',
+                  borderRadius: '12px'
+                }}
               >
                 <div className="d-flex align-items-center">
-                  <FileText size={20} className="text-primary me-2" />
+                  <FileText size={20} style={{ color: '#ee6060' }} className="me-2" />
                   <div>
-                    <div className="fw-medium text-dark" style={{ fontSize: '0.9rem' }}>
+                    <div className="fw-medium" style={{ fontSize: '0.9rem', color: '#89837f' }}>
                       {selectedFile.name}
                     </div>
-                    <small className="text-primary">
+                    <small style={{ color: '#ee6060' }}>
                       {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
                     </small>
                   </div>
@@ -211,7 +233,11 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
                 <button
                   type="button"
                   onClick={removeFile}
-                  className="btn btn-sm btn-outline-primary"
+                  className="btn btn-sm"
+                  style={{ 
+                    border: '1px solid #ee6060',
+                    color: '#ee6060'
+                  }}
                 >
                   <X size={16} />
                 </button>
@@ -225,15 +251,20 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
                 <motion.div
                   initial={{ scale: 0.9, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
-                  className="mb-3 p-2 bg-light border border-primary rounded-3 d-flex align-items-center justify-content-between"
+                  className="mb-3 p-2 rounded-3 d-flex align-items-center justify-content-between"
+                  style={{ 
+                    backgroundColor: '#eee4dd', 
+                    border: '1px solid #cec5bf',
+                    borderRadius: '12px'
+                  }}
                 >
                   <div className="d-flex align-items-center">
                     <img src={selectedImage.previewUrl} alt="selected" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 6 }} className="me-2" />
                     <div>
-                      <div className="fw-medium text-dark" style={{ fontSize: '0.85rem' }}>
+                      <div className="fw-medium" style={{ fontSize: '0.85rem', color: '#89837f' }}>
                         {selectedImage.file.name}
                       </div>
-                      <small className="text-primary">
+                      <small style={{ color: '#ee6060' }}>
                         {(selectedImage.file.size / 1024 / 1024).toFixed(2)} MB
                       </small>
                     </div>
@@ -241,7 +272,11 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
                   <button
                     type="button"
                     onClick={() => { setSelectedImage(null); if (imageInputRef.current) imageInputRef.current.value = '' }}
-                    className="btn btn-sm btn-outline-primary"
+                    className="btn btn-sm"
+                    style={{ 
+                      border: '1px solid #ee6060',
+                      color: '#ee6060'
+                    }}
                   >
                     <X size={16} />
                   </button>
@@ -249,14 +284,15 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
               )}
               
               {/* ChatGPT-like input with shadow */}
-              <div className="rounded-pill d-flex align-items-center bg-white shadow" 
+              <div className="rounded-pill d-flex align-items-center shadow" 
                    style={{ 
                      boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)', 
-                     border: '1px solid #e9e9e9',
+                     border: '1px solid #cec5bf', /* Darker border color */
                      overflow: 'hidden',
                      width: '100%',
                      maxWidth: '650px',
-                     margin: '0 auto'
+                     margin: '0 auto',
+                     backgroundColor: '#fff5ed' /* Light background from our palette */
                    }}>
                 {/* Only Plus button on left */}
                 <div className="d-flex align-items-center" style={{ padding: '8px 0 8px 16px' }}>
@@ -320,7 +356,7 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
                     width: '36px', 
                     height: '36px',
                     borderRadius: '50%',
-                    backgroundColor: disabled ? '#e0e0e0' : '#10a37f',
+                    backgroundColor: disabled ? '#cec5bf' : '#ee6060', /* Main color from our palette */
                     color: 'white'
                   }}
                 >
@@ -336,15 +372,35 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: 10 }}
                     transition={{ duration: 0.2 }}
-                    className="position-absolute bg-white rounded shadow-sm p-2 mt-1" 
-                    style={{ zIndex: 1030, width: '200px', left: '16px', bottom: '100%', marginBottom: '10px' }}
+                    className="position-absolute rounded shadow-sm p-2 mt-1" 
+                    style={{ 
+                      zIndex: 1030, 
+                      width: '200px', 
+                      left: '16px', 
+                      bottom: '100%', 
+                      marginBottom: '10px',
+                      backgroundColor: '#fff5ed', /* Light background from our palette */
+                      border: '1px solid #cec5bf' /* Darker border color */
+                    }}
                   >
-                    <button className="dropdown-item d-flex align-items-center py-2" type="button" onClick={openFilePicker} disabled={disabled}>
-                      <FileText size={16} className="me-2" />
+                    <button 
+                      className="dropdown-item d-flex align-items-center py-2" 
+                      type="button" 
+                      onClick={openFilePicker} 
+                      disabled={disabled}
+                      style={{ color: '#89837f', backgroundColor: 'transparent', border: 'none' }}
+                    >
+                      <FileText size={16} className="me-2" style={{ color: '#ee6060' }} />
                       رفع ملف PDF
                     </button>
-                    <button className="dropdown-item d-flex align-items-center py-2" type="button" onClick={openImagePicker} disabled={disabled}>
-                      <ImageIcon size={16} className="me-2" />
+                    <button 
+                      className="dropdown-item d-flex align-items-center py-2" 
+                      type="button" 
+                      onClick={openImagePicker} 
+                      disabled={disabled}
+                      style={{ color: '#89837f', backgroundColor: 'transparent', border: 'none' }}
+                    >
+                      <ImageIcon size={16} className="me-2" style={{ color: '#ee6060' }} />
                       رفع صورة
                     </button>
                     <button 
@@ -352,12 +408,13 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
                       type="button" 
                       onClick={toggleCombinedTool} 
                       disabled={disabled}
+                      style={{ color: '#89837f', backgroundColor: 'transparent', border: 'none' }}
                     >
                       <span className="d-flex align-items-center">
-                        <Search size={16} className="me-2" />
+                        <Search size={16} className="me-2" style={{ color: '#ee6060' }} />
                         بحث الويب
                       </span>
-                      {combinedToolEnabled && <span className="badge bg-primary rounded-pill">مفعل</span>}
+                      {combinedToolEnabled && <span className="badge rounded-pill" style={{ backgroundColor: '#ee6060' }}>مفعل</span>}
                     </button>
                     <button 
                       className="dropdown-item d-flex align-items-center justify-content-between py-2" 
@@ -371,12 +428,13 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
                         setToolMenuOpen(false);
                       }} 
                       disabled={disabled}
+                      style={{ color: '#89837f', backgroundColor: 'transparent', border: 'none' }}
                     >
                       <span className="d-flex align-items-center">
-                        <ListChecks size={16} className="me-2" />
+                        <ListChecks size={16} className="me-2" style={{ color: '#ee6060' }} />
                         إنشاء اختبار
                       </span>
-                      {quizMode && <span className="badge bg-primary rounded-pill">مفعل</span>}
+                      {quizMode && <span className="badge rounded-pill" style={{ backgroundColor: '#ee6060' }}>مفعل</span>}
                     </button>
                   </motion.div>
                 )}
@@ -405,7 +463,8 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
                   initial={{ opacity: 0, y: -5 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
-                  className="mt-2 small text-center text-primary">
+                  className="mt-2 small text-center"
+                  style={{ color: '#ee6060' }}>
                   باش نخدم بحث على الويب ونجيب محتوى أي رابط تكتبّو في سؤالك.
                 </motion.div>
               )}
@@ -414,7 +473,8 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
                   initial={{ opacity: 0, y: -5 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
-                  className="mt-2 small text-center text-primary">
+                  className="mt-2 small text-center"
+                  style={{ color: '#ee6060' }}>
                   باش نعملك اختبار (أسئلة متعددة الخيارات) على الموضوع إلي كتبتو.
                 </motion.div>
               )}

@@ -461,7 +461,11 @@ async function readPDFFile(file) {
   }
 
   return (
-    <div className="min-vh-100 tunisian-bg">
+    <div className="min-vh-100" style={{ 
+      backgroundColor: '#202123', 
+      background: 'linear-gradient(180deg, #343541 0%, #202123 100%)',
+      color: '#f8f9fa' 
+    }}>
       {/* Removed ChatHeader - clean minimalist design like ChatGPT */}
       {/* Edit Modal */}
       {editModal.open && (

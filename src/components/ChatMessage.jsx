@@ -226,8 +226,8 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                width: '32px', 
                height: '32px',
                background: isUser 
-                 ? 'linear-gradient(135deg, #007bff, #0056b3)' 
-                 : 'linear-gradient(135deg, #6f42c1, #e83e8c)'
+                 ? '#ee6060' 
+                 : '#ee6060'
              }}>
           {isUser ? <User size={16} className="text-white" /> : <Bot size={16} className="text-white" />}
         </div>
@@ -263,8 +263,13 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                           </pre>
                           <button 
                             onClick={() => copyToClipboard(codeString)}
-                            className="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-1"
-                            style={{ fontSize: '0.7rem' }}
+                            className="btn btn-sm position-absolute top-0 end-0 m-1"
+                            style={{ 
+                              fontSize: '0.7rem',
+                              backgroundColor: '#ee6060',
+                              color: 'white',
+                              border: 'none'
+                            }}
                             title="نسخ الكود"
                           >
                             <Copy size={12} />
@@ -297,12 +302,12 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
               </div>
             </div>
             {/* Timestamp and actions outside the bubble */}
-            <div className={`text-muted text-end d-flex align-items-center justify-content-end gap-2 mt-1`} style={{ fontSize: '0.75rem' }}>
-              <small style={{ opacity: 0.7 }}>
+            <div className={`text-end d-flex align-items-center justify-content-end gap-2 mt-1`} style={{ fontSize: '0.75rem' }}>
+              <small style={{ opacity: 0.7, color: '#fff5ed' }}>
                 {formatTime(message.timestamp)}
               </small>
               {retryCount > 0 && (
-                <small style={{ opacity: 0.7 }}>
+                <small style={{ opacity: 0.7, color: '#fff5ed' }}>
                   • {retryCount} إعادة محاولة
                 </small>
               )}
@@ -311,7 +316,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                 className="btn btn-link btn-sm p-0 ms-1"
                 onClick={() => copyToClipboard(message.text)}
                 title="نسخ"
-                style={{ verticalAlign: 'middle' }}
+                style={{ verticalAlign: 'middle', color: '#ee6060' }}
               >
                 <Copy size={14} />
               </button>
@@ -320,7 +325,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                 className="btn btn-link btn-sm p-0 ms-2"
                 onClick={() => onEdit && onEdit(message)}
                 title="تعديل"
-                style={{ verticalAlign: 'middle' }}
+                style={{ verticalAlign: 'middle', color: '#ee6060' }}
               >
                 <Pencil size={16} />
               </button>
@@ -356,8 +361,13 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                   </pre>
                   <button 
                     onClick={() => copyToClipboard(codeString)}
-                    className="btn btn-sm btn-outline-secondary position-absolute top-0 end-0 m-1"
-                    style={{ fontSize: '0.7rem' }}
+                    className="btn btn-sm position-absolute top-0 end-0 m-1"
+                    style={{ 
+                      fontSize: '0.7rem',
+                      backgroundColor: '#ee6060',
+                      color: 'white',
+                      border: 'none'
+                    }}
                     title="نسخ الكود"
                   >
                     <Copy size={12} />
@@ -524,7 +534,8 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
               {!quizRevealed ? (
                 <button
                   type="button"
-                  className="btn btn-primary"
+                  className="btn"
+                  style={{ backgroundColor: '#ee6060', color: 'white', border: 'none' }}
                   onClick={() => {
                     const score = calculateScore()
                     setQuizScore(score)
@@ -597,7 +608,12 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                           <div className="d-flex gap-2 justify-content-center flex-wrap">
                             <button
                               type="button"
-                              className="btn btn-outline-primary btn-sm"
+                              className="btn btn-sm"
+                              style={{
+                                backgroundColor: 'transparent',
+                                color: '#ee6060',
+                                border: '1px solid #ee6060'
+                              }}
                               onClick={() => {
                                 if (onConfirmQuiz && message.quizSubject) {
                                   onConfirmQuiz({
@@ -689,7 +705,12 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                 <button
                   key={d}
                   type="button"
-                  className={`btn btn-sm ${selDifficulties.includes(d) ? 'btn-primary' : 'btn-outline-primary'}`}
+                  className="btn btn-sm"
+                  style={{
+                    backgroundColor: selDifficulties.includes(d) ? '#ee6060' : 'transparent',
+                    color: selDifficulties.includes(d) ? 'white' : '#ee6060',
+                    border: `1px solid #ee6060`
+                  }}
                   onClick={() => {
                     const next = selDifficulties.includes(d) ? selDifficulties.filter(x=>x!==d) : [...selDifficulties, d]
                     setSelDifficulties(next.length ? next : selDifficulties) // prevent empty via UI; we'll still guard on Yes
@@ -706,7 +727,12 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                 <button
                   key={k}
                   type="button"
-                  className={`btn btn-sm ${selTypes.includes(k) ? 'btn-primary' : 'btn-outline-primary'}`}
+                  className="btn btn-sm"
+                  style={{
+                    backgroundColor: selTypes.includes(k) ? '#ee6060' : 'transparent',
+                    color: selTypes.includes(k) ? 'white' : '#ee6060',
+                    border: `1px solid #ee6060`
+                  }}
                   onClick={() => {
                     const next = selTypes.includes(k) ? selTypes.filter(x=>x!==k) : [...selTypes, k]
                     setSelTypes(next.length ? next : selTypes)
@@ -854,12 +880,12 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
           </button>
         </div>
       )}
-      <div className={`text-muted text-start d-flex align-items-center gap-2`}>
-        <small style={{ fontSize: '0.75rem', opacity: 0.7 }}>
+      <div className={`text-start d-flex align-items-center gap-2`}>
+        <small style={{ fontSize: '0.75rem', opacity: 0.7, color: '#fff5ed' }}>
           {formatTime(message.timestamp)}
         </small>
         {retryCount > 0 && (
-          <small style={{ fontSize: '0.75rem', opacity: 0.7 }}>
+          <small style={{ fontSize: '0.75rem', opacity: 0.7, color: '#fff5ed' }}>
             • {retryCount} إعادة محاولة
           </small>
         )}
@@ -868,7 +894,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
           className="btn btn-link btn-sm p-0 ms-1"
           onClick={() => copyToClipboard(message.text)}
           title="نسخ"
-          style={{ verticalAlign: 'middle' }}
+          style={{ verticalAlign: 'middle', color: '#ee6060' }}
         >
           <Copy size={14} />
         </button>
@@ -878,7 +904,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
             className="btn btn-link btn-sm p-0 ms-2"
             onClick={() => onDownloadPdf && onDownloadPdf(message.id)}
             title="تحميل كـ PDF"
-            style={{ verticalAlign: 'middle' }}
+            style={{ verticalAlign: 'middle', color: '#ee6060' }}
             disabled={generatingPreview === message.id}
           >
             {generatingPreview === message.id ? (
@@ -894,7 +920,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
             className="btn btn-link btn-sm p-0 ms-2"
             onClick={() => onRetry && onRetry(message)}
             title="أعد المحاولة"
-            style={{ verticalAlign: 'middle' }}
+            style={{ verticalAlign: 'middle', color: '#ee6060' }}
           >
             <RotateCcw size={16} />
           </button>
