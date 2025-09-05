@@ -486,10 +486,10 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                           const selected = selectedArr.includes(oi)
                           const isCorrect = Array.isArray(q.correctIndices) ? q.correctIndices.includes(oi) : false
                           const bg = show
-                            ? (isCorrect ? 'rgba(238,96,96,0.15)' : (selected ? 'rgba(238,96,96,0.25)' : '#fff5ed'))
+                            ? (isCorrect ? 'rgba(40,167,69,0.15)' : 'rgba(238,96,96,0.25)')
                             : (selected ? 'rgba(238,96,96,0.12)' : '#fff5ed')
                           const border = show
-                            ? (isCorrect ? '1px solid #ee6060' : (selected ? '1px solid #ee6060' : '1px solid #cec5bf'))
+                            ? (isCorrect ? '1px solid #28a745' : '1px solid #ee6060')
                             : (selected ? '1px solid #ee6060' : '1px solid #cec5bf')
                           return (
                             <button
@@ -523,10 +523,10 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                           const selected = quizSelections[qi] === oi
                           const isCorrect = q.correctIndex === oi
                           const bg = show
-                            ? (isCorrect ? 'rgba(238,96,96,0.15)' : (selected ? 'rgba(238,96,96,0.25)' : '#fff5ed'))
+                            ? (isCorrect ? 'rgba(40,167,69,0.15)' : 'rgba(238,96,96,0.25)')
                             : (selected ? 'rgba(238,96,96,0.12)' : '#fff5ed')
                           const border = show
-                            ? (isCorrect ? '1px solid #ee6060' : (selected ? '1px solid #ee6060' : '1px solid #cec5bf'))
+                            ? (isCorrect ? '1px solid #28a745' : '1px solid #ee6060')
                             : (selected ? '1px solid #ee6060' : '1px solid #cec5bf')
                           return (
                             <button
@@ -660,7 +660,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                                     types: message.quizTypes || selTypes,
                                     timer: message.quizTimer || (timerEnabled ? timerMinutes : 0),
                                     hints: message.quizHints !== undefined ? message.quizHints : hintsEnabled,
-                                    messageId: message.id
+                                    messageId: null // Don't remove previous quiz for same parameters
                                   })
                                 }
                               }}

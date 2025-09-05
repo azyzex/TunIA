@@ -348,8 +348,14 @@ async function readPDFFile(file) {
         quizTimer: timer,
         quizHints: hints
       }
-      // Remove the confirm message and add the quiz
-      setMessages(prev => [...prev.filter(m => m.id !== messageId), quizMessage])
+      // Add the new quiz without removing the previous one if messageId is null (same parameters)
+      if (messageId) {
+        // Remove the confirm message and add the quiz (normal case)
+        setMessages(prev => [...prev.filter(m => m.id !== messageId), quizMessage])
+      } else {
+        // Just add the new quiz without removing anything (same parameters case)
+        setMessages(prev => [...prev, quizMessage])
+      }
     } catch (e) {
       console.error('Quiz generation error:', e)
       const errorMessage = {
