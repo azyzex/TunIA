@@ -221,16 +221,16 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
     >
       <div className={`d-flex align-items-start ${isUser ? 'flex-row-reverse' : ''}`}>
         {/* Avatar */}
-        <div className={`rounded-circle d-flex align-items-center justify-content-center ${isUser ? 'ms-3' : 'me-3'}`}
-             style={{ 
-               width: '32px', 
-               height: '32px',
-               background: isUser 
-                 ? '#ee6060' 
-                 : '#ee6060'
-             }}>
-          {isUser ? <User size={16} className="text-white" /> : <Bot size={16} className="text-white" />}
-        </div>
+        {isUser && (
+          <div className={`rounded-circle d-flex align-items-center justify-content-center ms-3`}
+               style={{ 
+                 width: '32px', 
+                 height: '32px',
+                 background: '#ee6060'
+               }}>
+            <User size={16} className="text-white" />
+          </div>
+        )}
 
         {/* Message Bubble */}
         {isUser ? (

@@ -166,7 +166,7 @@ function App() {
     // Add welcome message from AI
     const welcomeMessage = {
       id: 1,
-      text: "أهلاً بيك في TUNIA! أنا هنا باش نساعدك في الأسئلة الأكاديمية بالدارجة التونسية. اسألني على أي حاجة تحب تعرفها!",
+      text: "أهلاً بيك! شنوة تحبني نعاونك فيه؟",
       sender: 'ai',
       timestamp: new Date(),
       isWelcomeMessage: true // Flag to identify the welcome message
