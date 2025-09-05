@@ -424,13 +424,28 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                         💡 {hintsVisible[qi] ? 'إخفاء التلميحة' : 'إظهار تلميحة'}
                       </button>
                       {hintsVisible[qi] && (
-                        <div className="mt-2 p-2 rounded" style={{ 
+                        <div className="mt-2 p-3 rounded" style={{ 
                           fontSize: '0.85rem', 
-                          color: '#89837f', 
+                          color: '#fff5ed', 
                           fontStyle: 'italic',
-                          backgroundColor: '#eee4dd',
-                          border: '1px solid #cec5bf'
+                          backgroundColor: '#89837f',
+                          border: '2px dashed #ee6060',
+                          borderRadius: '8px',
+                          position: 'relative'
                         }}>
+                          <div style={{ 
+                            position: 'absolute',
+                            top: '-8px',
+                            left: '12px',
+                            backgroundColor: '#89837f',
+                            color: '#ee6060',
+                            fontSize: '0.75rem',
+                            fontWeight: 'bold',
+                            paddingLeft: '4px',
+                            paddingRight: '4px'
+                          }}>
+                            💡 تلميحة
+                          </div>
                           {q.hint}
                         </div>
                       )}
@@ -590,31 +605,31 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                   {/* Quiz Score Display */}
                   {quizScore && (
                     <div className="mt-3">
-                      <div className={`card border-0 ${quizScore.percentage >= 80 ? 'bg-success' : quizScore.percentage >= 60 ? 'bg-warning' : 'bg-danger'} bg-opacity-10`}>
+                      <div className="card border-0" style={{ backgroundColor: '#ee6060', color: '#fff5ed' }}>
                         <div className="card-body text-center py-3">
-                          <h5 className="card-title mb-2">
+                          <h5 className="card-title mb-2" style={{ color: '#fff5ed' }}>
                             <i className="fas fa-chart-line me-2"></i>
                             نتيجة الاختبار
                           </h5>
                           <div className="row">
                             <div className="col-4">
-                              <div className="text-success fw-bold fs-4">{quizScore.correct}</div>
-                              <small className="text-muted">إجابات صحيحة</small>
+                              <div className="fw-bold fs-4" style={{ color: '#fff5ed' }}>{quizScore.correct}</div>
+                              <small style={{ color: '#fff5ed', opacity: 0.8 }}>إجابات صحيحة</small>
                             </div>
                             <div className="col-4">
-                              <div className="text-danger fw-bold fs-4">{quizScore.total - quizScore.correct}</div>
-                              <small className="text-muted">إجابات خاطئة</small>
+                              <div className="fw-bold fs-4" style={{ color: '#fff5ed' }}>{quizScore.total - quizScore.correct}</div>
+                              <small style={{ color: '#fff5ed', opacity: 0.8 }}>إجابات خاطئة</small>
                             </div>
                             <div className="col-4">
-                              <div className={`fw-bold fs-3 ${quizScore.percentage >= 80 ? 'text-success' : quizScore.percentage >= 60 ? 'text-warning' : 'text-danger'}`}>
+                              <div className="fw-bold fs-3" style={{ color: '#fff5ed' }}>
                                 {quizScore.percentage}%
                               </div>
-                              <small className="text-muted">النسبة المئوية</small>
+                              <small style={{ color: '#fff5ed', opacity: 0.8 }}>النسبة المئوية</small>
                             </div>
                           </div>
                           
                           <div className="mt-2">
-                            <div className={`badge ${quizScore.percentage >= 80 ? 'bg-success' : quizScore.percentage >= 60 ? 'bg-warning' : 'bg-danger'} fs-6`}>
+                            <div className="badge fs-6" style={{ backgroundColor: '#89837f', color: '#fff5ed' }}>
                               {quizScore.percentage >= 80 ? 'ممتاز! 🎉' : 
                                quizScore.percentage >= 60 ? 'جيد 👍' : 
                                'يحتاج تحسين 📚'}
