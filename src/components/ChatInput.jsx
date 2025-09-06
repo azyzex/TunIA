@@ -36,6 +36,9 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
     
     if (!hasContent && !canSendQuizWithPdf) return
     
+    // Close tool menu when sending
+    setToolMenuOpen(false);
+    
     // If input is centered, animate the transition to bottom first
     if (isCentered) {
       setIsCentered(false);
