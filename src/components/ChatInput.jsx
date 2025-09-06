@@ -204,21 +204,24 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
         }}
       >
       {/* Welcome message - only shown when centered */}
-      {isCentered && (
-        <motion.h2 
-          className="text-center mb-4 fw-normal" 
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.5 }}
-          style={{ 
-            color: '#fff5ed', /* Using our light color from the palette */
-            fontSize: '28px',
-            textShadow: '0 1px 3px rgba(0,0,0,0.3)'
-          }}
-        >
-          شنوة جديدك يا معلم
-        </motion.h2>
-      )}
+      <AnimatePresence>
+        {isCentered && (
+          <motion.h2 
+            className="text-center mb-4 fw-normal" 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, transition: { duration: 0.5 } }}
+            transition={{ delay: 0.2, duration: 0.5 }}
+            style={{ 
+              color: '#fff5ed', /* Using our light color from the palette */
+              fontSize: '28px',
+              textShadow: '0 1px 3px rgba(0,0,0,0.3)'
+            }}
+          >
+            شنوة جديدك يا معلم
+          </motion.h2>
+        )}
+      </AnimatePresence>
       
       <div className="container-fluid p-0">
         <div className="row justify-content-center g-0">
