@@ -243,7 +243,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className={`d-flex mb-3 ${isUser ? 'justify-content-end' : 'justify-content-start'}`}
+      className={`d-flex mb-3 ${isUser ? 'justify-content-end' : (message.isQuiz ? 'justify-content-center' : 'justify-content-start')}`}
     >
       <div className={`d-flex align-items-start ${isUser ? 'flex-row-reverse' : ''}`}>
         {/* Avatar */}
@@ -358,20 +358,21 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
             </div>
           </div>
         ) : (
-    <div className="w-100 mb-1">
-      {message.file && (
-        <div className="d-flex align-items-center mb-2 p-2 rounded"
-             style={{ backgroundColor: 'rgba(0, 0, 0, 0.1)' }}>
-          <FileText size={16} className="me-2" />
-          <small>{message.file.name}</small>
-        </div>
-      )}
-      {message.imagePreview && (
-        <div className="mb-2">
-          <img src={message.imagePreview} alt="uploaded" style={{ width: 88, height: 88, objectFit: 'cover', borderRadius: 8 }} />
-        </div>
-      )}
-      <div className="mb-1 message-rtl" style={{ fontSize: '0.97rem', lineHeight: '1.7', wordBreak: 'break-word' }}>
+    <div className={`${message.isQuiz ? 'd-flex justify-content-center' : 'w-100'} mb-1`}>
+      <div className={message.isQuiz ? 'w-100' : ''} style={message.isQuiz ? { maxWidth: '600px' } : {}}>
+        {message.file && (
+          <div className="d-flex align-items-center mb-2 p-2 rounded"
+               style={{ backgroundColor: 'rgba(0, 0, 0, 0.1)' }}>
+            <FileText size={16} className="me-2" />
+            <small>{message.file.name}</small>
+          </div>
+        )}
+        {message.imagePreview && (
+          <div className="mb-2">
+            <img src={message.imagePreview} alt="uploaded" style={{ width: 88, height: 88, objectFit: 'cover', borderRadius: 8 }} />
+          </div>
+        )}
+        <div className="mb-1 message-rtl" style={{ fontSize: '0.97rem', lineHeight: '1.7', wordBreak: 'break-word' }}>
         {!message.isQuiz ? (
         <ReactMarkdown
           components={{
@@ -424,13 +425,21 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
           {message.text}
         </ReactMarkdown>
   ) : (
-          <div className="quiz-block">
+          <div className="quiz-block d-flex flex-column align-items-center">
             {Array.isArray(message.quiz) && message.quiz.map((q, qi) => {
               const type = String(q.type || 'mcq').toLowerCase()
               const immediateActive = Boolean(message?.quizImmediateFeedback)
               return (
-                <div key={qi} className="mb-3 p-2 border rounded">
-                  <div className="fw-bold mb-2">{qi + 1}. {q.question}</div>
+                <div key={qi} className="mb-4 p-4 w-100" style={{ 
+                  backgroundColor: 'rgba(255, 245, 237, 0.05)',
+                  borderRadius: '16px',
+                  maxWidth: '550px'
+                }}>
+                  <div className="fw-bold mb-3 text-center" style={{ 
+                    fontSize: '1.1rem',
+                    color: '#fff5ed',
+                    lineHeight: '1.6'
+                  }}>{qi + 1}. {q.question}</div>
                   {q.hint && (
                     <div className="mb-2">
                       <button
@@ -479,10 +488,10 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                     </div>
                   )}
                   {type === 'fitb' ? (
-                    <div className="d-flex align-items-center gap-2">
+                    <div className="d-flex flex-column align-items-center gap-3">
                       <input
                         type="text"
-                        className="form-control"
+                        className="form-control text-center"
                         placeholder="اكتب الإجابة"
                         value={quizSelections[qi] ?? ''}
                         disabled={quizRevealed || (message.timer && timeRemaining <= 0)}
@@ -499,13 +508,24 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                             })
                           }
                         }}
-                        style={(quizRevealed || (immediateActive && questionRevealed[qi])) ? {
-                          borderColor: (() => {
-                            const val = String(quizSelections[qi] || '').trim().toLowerCase()
-                            const ok = [String(q.answerText||'').trim().toLowerCase(), ...((q.acceptableAnswers||[]).map(s=>String(s).trim().toLowerCase()))].includes(val)
-                            return ok ? '#198754' : '#dc3545'
-                          })()
-                        } : {}}
+                        style={{
+                          backgroundColor: 'rgba(255,245,237,0.1)',
+                          border: 'none',
+                          borderRadius: '12px',
+                          padding: '12px 16px',
+                          fontSize: '1rem',
+                          color: '#fff5ed',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                          transition: 'all 0.2s ease',
+                          ...(quizRevealed || (immediateActive && questionRevealed[qi])) ? {
+                            borderColor: (() => {
+                              const val = String(quizSelections[qi] || '').trim().toLowerCase()
+                              const ok = [String(q.answerText||'').trim().toLowerCase(), ...((q.acceptableAnswers||[]).map(s=>String(s).trim().toLowerCase()))].includes(val)
+                              return ok ? '#198754' : '#dc3545'
+                            })(),
+                            border: '2px solid'
+                          } : {}
+                        }}
                       />
                       {(quizRevealed || (immediateActive && questionRevealed[qi])) && (
                         <small style={{ color: '#89837f' }}>الإجابة الصحيحة: <strong>{q.answerText}</strong></small>
@@ -522,19 +542,22 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                           const bg = show
                             ? (isCorrect ? 'rgba(40,167,69,0.15)' : 'rgba(238,96,96,0.25)')
                             : (selected ? 'rgba(238,96,96,0.12)' : '#fff5ed')
-                          const border = show
-                            ? (isCorrect ? '1px solid #28a745' : '1px solid #ee6060')
-                            : (selected ? '1px solid #ee6060' : '1px solid #cec5bf')
+                          const textColor = show
+                            ? '#fff5ed'
+                            : (selected ? '#fff5ed' : '#89837f')
                           return (
                             <button
                               key={oi}
                               type="button"
-                              className="btn text-start"
+                              className="btn text-start d-flex align-items-center p-3 mb-2"
                               style={{ 
                                 background: bg, 
-                                border, 
-                                borderRadius: 8,
-                                color: '#89837f'
+                                border: 'none',
+                                borderRadius: '12px',
+                                color: textColor,
+                                fontSize: '0.95rem',
+                                boxShadow: show ? (isCorrect ? '0 2px 8px rgba(40,167,69,0.3)' : '0 2px 8px rgba(238,96,96,0.3)') : (selected ? '0 2px 8px rgba(238,96,96,0.2)' : '0 2px 4px rgba(0,0,0,0.1)'),
+                                transition: 'all 0.2s ease'
                               }}
                               onClick={() => {
                                 if (quizRevealed || (message.timer && timeRemaining <= 0)) return
@@ -553,9 +576,21 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                                 }
                               }}
                             >
-                              <div className="d-flex align-items-center">
-                                <input type="checkbox" checked={selected} readOnly className="me-2" />
-                                <span>{opt}</span>
+                              <div className="d-flex align-items-center w-100">
+                                <div className="me-3" style={{
+                                  width: '20px',
+                                  height: '20px',
+                                  borderRadius: '4px',
+                                  border: selected ? '2px solid #ee6060' : '2px solid rgba(255,245,237,0.3)',
+                                  backgroundColor: selected ? '#ee6060' : 'transparent',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  transition: 'all 0.2s ease'
+                                }}>
+                                  {selected && <span style={{ color: 'white', fontSize: '12px' }}>✓</span>}
+                                </div>
+                                <span style={{ flex: 1 }}>{opt}</span>
                               </div>
                             </button>
                           )
@@ -566,19 +601,22 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                           const bg = show
                             ? (isCorrect ? 'rgba(40,167,69,0.15)' : 'rgba(238,96,96,0.25)')
                             : (selected ? 'rgba(238,96,96,0.12)' : '#fff5ed')
-                          const border = show
-                            ? (isCorrect ? '1px solid #28a745' : '1px solid #ee6060')
-                            : (selected ? '1px solid #ee6060' : '1px solid #cec5bf')
+                          const textColor = show
+                            ? '#fff5ed'
+                            : (selected ? '#fff5ed' : '#89837f')
                           return (
                             <button
                               key={oi}
                               type="button"
-                              className="btn text-start"
+                              className="btn text-start d-flex align-items-center p-3 mb-2"
                               style={{ 
                                 background: bg, 
-                                border, 
-                                borderRadius: 8,
-                                color: '#89837f'
+                                border: 'none',
+                                borderRadius: '12px',
+                                color: textColor,
+                                fontSize: '0.95rem',
+                                boxShadow: show ? (isCorrect ? '0 2px 8px rgba(40,167,69,0.3)' : '0 2px 8px rgba(238,96,96,0.3)') : (selected ? '0 2px 8px rgba(238,96,96,0.2)' : '0 2px 4px rgba(0,0,0,0.1)'),
+                                transition: 'all 0.2s ease'
                               }}
                               onClick={() => {
                                 if (quizRevealed || (message.timer && timeRemaining <= 0)) return
@@ -594,9 +632,26 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                                 }
                               }}
                             >
-                              <div className="d-flex align-items-center">
-                                <input type="radio" name={`q-${message.id}-${qi}`} checked={selected} readOnly className="me-2" />
-                                <span>{opt}</span>
+                              <div className="d-flex align-items-center w-100">
+                                <div className="me-3" style={{
+                                  width: '20px',
+                                  height: '20px',
+                                  borderRadius: '50%',
+                                  border: selected ? '2px solid #ee6060' : '2px solid rgba(255,245,237,0.3)',
+                                  backgroundColor: selected ? '#ee6060' : 'transparent',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  transition: 'all 0.2s ease'
+                                }}>
+                                  {selected && <div style={{ 
+                                    width: '8px', 
+                                    height: '8px', 
+                                    borderRadius: '50%', 
+                                    backgroundColor: 'white' 
+                                  }}></div>}
+                                </div>
+                                <span style={{ flex: 1 }}>{opt}</span>
                               </div>
                             </button>
                           )
@@ -1050,8 +1105,9 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
         )}
       </div>
     </div>
-  )}
       </div>
+  )}
+    </div>
     </motion.div>
     </>
   )
