@@ -309,7 +309,7 @@ async function readPDFFile(file) {
 
 
   // Quiz confirm handlers
-  const handleConfirmQuiz = async ({ subject, questions, answers, difficulties = ['medium'], types = ['mcq'], timer = null, hints = false, messageId }) => {
+  const handleConfirmQuiz = async ({ subject, questions, answers, difficulties = ['medium'], types = ['mcq'], timer = null, hints = false, immediateFeedback = false, messageId }) => {
     setQuizGenerating(true)
     try {
       const res = await fetch('http://localhost:3001/api/chat', {
@@ -325,6 +325,7 @@ async function readPDFFile(file) {
           quizTypes: types,
           quizTimer: timer,
           quizHints: hints,
+          quizImmediateFeedback: immediateFeedback,
           webSearch: true,
           fetchUrl: true
         })
@@ -346,7 +347,8 @@ async function readPDFFile(file) {
         quizDifficulties: difficulties,
         quizTypes: types,
         quizTimer: timer,
-        quizHints: hints
+  quizHints: hints,
+  quizImmediateFeedback: immediateFeedback
       }
       // Add the new quiz without removing the previous one if messageId is null (same parameters)
       if (messageId) {

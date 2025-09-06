@@ -19,6 +19,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
   const [timerEnabled, setTimerEnabled] = useState(false)
   const [timerMinutes, setTimerMinutes] = useState(10)
   const [hintsEnabled, setHintsEnabled] = useState(false)
+  const [immediateFeedback, setImmediateFeedback] = useState(false)
   // Input validation state
   const [questionsCount, setQuestionsCount] = useState(message?.quizDefaultQuestions || 5)
   const [answersCount, setAnswersCount] = useState(message?.quizDefaultAnswers || 4)
@@ -27,6 +28,8 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
   const [timerExpired, setTimerExpired] = useState(false)
   // Hints state for individual questions
   const [hintsVisible, setHintsVisible] = useState([])
+  // Immediate feedback per-question reveal state
+  const [questionRevealed, setQuestionRevealed] = useState([])
 
   // Initialize selections when a quiz arrives
   React.useEffect(() => {
@@ -44,8 +47,31 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
       setTimeRemaining(null)
       // Initialize hints visibility (all hidden by default)
       setHintsVisible(Array(message.quiz.length).fill(false))
+  // Initialize per-question reveal flags to false
+  setQuestionRevealed(Array(message.quiz.length).fill(false))
     }
   }, [message?.isQuiz, Array.isArray(message?.quiz) ? message.quiz.length : 0])
+
+  // Auto-submit in immediate feedback mode when all questions are answered
+  React.useEffect(() => {
+    if (!message?.isQuiz || !Array.isArray(message.quiz)) return
+    const immediateActive = Boolean(message?.quizImmediateFeedback)
+    if (!immediateActive || quizRevealed) return
+    // Determine if all questions have an answer
+    const allAnswered = message.quiz.every((question, i) => {
+      const t = String(question.type || 'mcq').toLowerCase()
+      const sel = quizSelections[i]
+      if (t === 'mcma') return Array.isArray(sel) && sel.length > 0
+      if (t === 'fitb') return Boolean(String(sel || '').trim())
+      // mcq/tf
+      return sel !== null && sel !== undefined
+    })
+    if (allAnswered) {
+      const score = calculateScore()
+      setQuizScore(score)
+      setQuizRevealed(true)
+    }
+  }, [message?.isQuiz, Array.isArray(message?.quiz) ? message.quiz.length : 0, message?.quizImmediateFeedback, quizSelections, quizRevealed])
 
   // Timer logic for quiz
   React.useEffect(() => {
@@ -401,6 +427,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
           <div className="quiz-block">
             {Array.isArray(message.quiz) && message.quiz.map((q, qi) => {
               const type = String(q.type || 'mcq').toLowerCase()
+              const immediateActive = Boolean(message?.quizImmediateFeedback)
               return (
                 <div key={qi} className="mb-3 p-2 border rounded">
                   <div className="fw-bold mb-2">{qi + 1}. {q.question}</div>
@@ -464,8 +491,15 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                           const next = [...quizSelections]
                           next[qi] = e.target.value
                           setQuizSelections(next)
+                          if (immediateActive) {
+                            setQuestionRevealed(prev => {
+                              const copy = Array.isArray(prev) ? [...prev] : []
+                              copy[qi] = true
+                              return copy
+                            })
+                          }
                         }}
-                        style={quizRevealed ? {
+                        style={(quizRevealed || (immediateActive && questionRevealed[qi])) ? {
                           borderColor: (() => {
                             const val = String(quizSelections[qi] || '').trim().toLowerCase()
                             const ok = [String(q.answerText||'').trim().toLowerCase(), ...((q.acceptableAnswers||[]).map(s=>String(s).trim().toLowerCase()))].includes(val)
@@ -473,14 +507,14 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                           })()
                         } : {}}
                       />
-                      {quizRevealed && (
+                      {(quizRevealed || (immediateActive && questionRevealed[qi])) && (
                         <small style={{ color: '#89837f' }}>الإجابة الصحيحة: <strong>{q.answerText}</strong></small>
                       )}
                     </div>
                   ) : (
                     <div className="d-flex flex-column gap-2">
                       {(q.options || []).map((opt, oi) => {
-                        const show = quizRevealed
+                        const show = quizRevealed || (immediateActive && questionRevealed[qi])
                         if (type === 'mcma') {
                           const selectedArr = Array.isArray(quizSelections[qi]) ? quizSelections[qi] : []
                           const selected = selectedArr.includes(oi)
@@ -510,6 +544,13 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                                 if (idx >= 0) cur.splice(idx,1); else cur.push(oi)
                                 next[qi] = cur
                                 setQuizSelections(next)
+                                if (immediateActive) {
+                                  setQuestionRevealed(prev => {
+                                    const copy = Array.isArray(prev) ? [...prev] : []
+                                    copy[qi] = true
+                                    return copy
+                                  })
+                                }
                               }}
                             >
                               <div className="d-flex align-items-center">
@@ -544,6 +585,13 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                                 const next = [...quizSelections]
                                 next[qi] = oi
                                 setQuizSelections(next)
+                                if (immediateActive) {
+                                  setQuestionRevealed(prev => {
+                                    const copy = Array.isArray(prev) ? [...prev] : []
+                                    copy[qi] = true
+                                    return copy
+                                  })
+                                }
                               }}
                             >
                               <div className="d-flex align-items-center">
@@ -568,44 +616,48 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
             })}
             <div className="mt-3">
               {!quizRevealed ? (
-                <button
-                  type="button"
-                  className="btn"
-                  style={{ backgroundColor: '#ee6060', color: 'white', border: 'none' }}
-                  onClick={() => {
-                    const score = calculateScore()
-                    setQuizScore(score)
-                    setQuizRevealed(true)
-                  }}
-                  disabled={(() => {
-                    if (!Array.isArray(message.quiz)) return true
-                    // If timer is active, don't allow manual reveal unless time expired
-                    if (message.timer && timeRemaining > 0) return true
-                    for (let i=0;i<message.quiz.length;i++){
-                      const t = String(message.quiz[i].type || 'mcq').toLowerCase()
-                      const sel = quizSelections[i]
-                      if (t === 'mcma') { if (!Array.isArray(sel) || sel.length === 0) return true }
-                      else if (t === 'fitb') { if (!String(sel||'').trim()) return true }
-                      else { if (sel === null || sel === undefined) return true }
-                    }
-                    return false
-                  })()}
-                >
-                  تصحيح الإجابات
-                </button>
+                // Hide submit button entirely in immediate feedback mode
+                message?.quizImmediateFeedback ? null : (
+                  <button
+                    type="button"
+                    className="btn"
+                    style={{ backgroundColor: '#ee6060', color: 'white', border: 'none' }}
+                    onClick={() => {
+                      const score = calculateScore()
+                      setQuizScore(score)
+                      setQuizRevealed(true)
+                    }}
+                    disabled={(() => {
+                      if (!Array.isArray(message.quiz)) return true
+                      // If timer is active, don't allow manual reveal unless time expired
+                      if (message.timer && timeRemaining > 0) return true
+                      for (let i=0;i<message.quiz.length;i++){
+                        const t = String(message.quiz[i].type || 'mcq').toLowerCase()
+                        const sel = quizSelections[i]
+                        if (t === 'mcma') { if (!Array.isArray(sel) || sel.length === 0) return true }
+                        else if (t === 'fitb') { if (!String(sel||'').trim()) return true }
+                        else { if (sel === null || sel === undefined) return true }
+                      }
+                      return false
+                    })()}
+                  >
+                    تصحيح الإجابات
+                  </button>
+                )
               ) : (
                 <>
                   <div className="alert alert-info">
-                    {timerExpired ? 
-                      'انتهى الوقت! تم إظهار الإجابات الصحيحة باللون الأخضر والخاطئة بالأحمر.' :
-                      'تم إظهار الإجابات الصحيحة باللون الأخضر والخاطئة بالأحمر.'
-                    }
+                    {timerExpired
+                      ? 'انتهى الوقت! تم إظهار الإجابات الصحيحة باللون الأخضر والخاطئة بالأحمر.'
+                      : (message?.quizImmediateFeedback
+                        ? 'تم التصحيح تلقائياً بعد إكمال كل الإجابات.'
+                        : 'تم إظهار الإجابات الصحيحة باللون الأخضر والخاطئة بالأحمر.')}
                   </div>
                   
                   {/* Quiz Score Display */}
                   {quizScore && (
                     <div className="mt-3">
-                      <div className="card border-0" style={{ backgroundColor: '#ee6060', color: '#fff5ed' }}>
+                      <div className="card border-0" style={{ backgroundColor: '#89837f', color: '#fff5ed', border: '1px solid #cec5bf' }}>
                         <div className="card-body text-center py-3">
                           <h5 className="card-title mb-2" style={{ color: '#fff5ed' }}>
                             <i className="fas fa-chart-line me-2"></i>
@@ -629,7 +681,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                           </div>
                           
                           <div className="mt-2">
-                            <div className="badge fs-6" style={{ backgroundColor: '#89837f', color: '#fff5ed' }}>
+                            <div className="badge fs-6" style={{ backgroundColor: '#ee6060', color: '#fff5ed' }}>
                               {quizScore.percentage >= 80 ? 'ممتاز! 🎉' : 
                                quizScore.percentage >= 60 ? 'جيد 👍' : 
                                'يحتاج تحسين 📚'}
@@ -660,6 +712,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                                     types: message.quizTypes || selTypes,
                                     timer: message.quizTimer || (timerEnabled ? timerMinutes : 0),
                                     hints: message.quizHints !== undefined ? message.quizHints : hintsEnabled,
+                                    immediateFeedback: message.quizImmediateFeedback !== undefined ? message.quizImmediateFeedback : immediateFeedback,
                                     messageId: null // Don't remove previous quiz for same parameters
                                   })
                                 }
@@ -828,6 +881,25 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                 </label>
               </div>
             </div>
+            {/* Immediate Feedback toggle */}
+            <div className="d-flex align-items-center gap-2">
+              <div className="form-check form-switch">
+                <input
+                  className="form-check-input"
+                  type="checkbox"
+                  id={`feedback-switch-${message.id}`}
+                  checked={immediateFeedback}
+                  onChange={(e) => setImmediateFeedback(e.target.checked)}
+                  style={{
+                    backgroundColor: immediateFeedback ? '#ee6060' : '#cec5bf',
+                    borderColor: '#ee6060'
+                  }}
+                />
+                <label className="form-check-label" htmlFor={`feedback-switch-${message.id}`}>
+                  ردود فعل فورية
+                </label>
+              </div>
+            </div>
             <button
               type="button"
               className="btn d-flex align-items-center gap-2"
@@ -843,6 +915,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                   types: selTypes, 
                   timer: timerEnabled ? timerMinutes : null,
                   hints: hintsEnabled,
+                  immediateFeedback: immediateFeedback,
                   messageId: message.id 
                 })
               }}
