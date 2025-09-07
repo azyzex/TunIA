@@ -829,66 +829,128 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
         )}
       </div>
       {message.isQuizConfirm && (
-        <div className="mt-3 mb-2">
-          <div className="d-flex flex-wrap align-items-center gap-3">
-            <div className="d-flex align-items-center gap-2">
-              <label className="form-label m-0">عدد الأسئلة</label>
-              <input 
-                type="number" 
-                className={`form-control ${questionsCount < 2 || questionsCount > 40 ? 'is-invalid' : ''}`}
-                value={questionsCount}
-                onChange={(e) => setQuestionsCount(parseInt(e.target.value) || 2)}
-                min={2} 
-                max={40} 
-                style={{ width: 90 }} 
-              />
+        <div className="d-flex justify-content-center">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-4 p-4" 
+            style={{ 
+              backgroundColor: 'rgba(255,245,237,0.05)', 
+              borderRadius: '16px',
+              border: '1px solid rgba(238,96,96,0.2)',
+              maxWidth: '600px',
+              width: '100%'
+            }}
+          >
+            <h5 className="text-center mb-4" style={{ color: '#fff5ed', fontWeight: 'bold' }}>
+              إعدادات الاختبار
+            </h5>
+          
+          {/* Basic Settings Row */}
+          <div className="row g-3 mb-4">
+            <div className="col-6">
+              <div className="text-center">
+                <label className="form-label mb-2" style={{ color: '#fff5ed', fontSize: '0.9rem' }}>
+                  عدد الأسئلة
+                </label>
+                <input 
+                  type="number" 
+                  className="form-control text-center"
+                  value={questionsCount}
+                  onChange={(e) => setQuestionsCount(parseInt(e.target.value) || 2)}
+                  min={2} 
+                  max={40} 
+                  style={{ 
+                    backgroundColor: 'rgba(255,245,237,0.1)',
+                    border: questionsCount < 2 || questionsCount > 40 ? '2px solid #dc3545' : '1px solid rgba(238,96,96,0.3)',
+                    borderRadius: '8px',
+                    color: '#fff5ed',
+                    fontSize: '1.1rem',
+                    fontWeight: 'bold'
+                  }}
+                />
+                <small style={{ color: '#89837f', fontSize: '0.75rem' }}>من 2 إلى 40</small>
+              </div>
             </div>
-            <div className="d-flex align-items-center gap-2">
-              <label className="form-label m-0">عدد الخيارات</label>
-              <input 
-                type="number" 
-                className={`form-control ${answersCount < 2 || answersCount > 5 ? 'is-invalid' : ''}`}
-                value={answersCount}
-                onChange={(e) => setAnswersCount(parseInt(e.target.value) || 2)}
-                min={2} 
-                max={5} 
-                style={{ width: 90 }} 
-              />
+            <div className="col-6">
+              <div className="text-center">
+                <label className="form-label mb-2" style={{ color: '#fff5ed', fontSize: '0.9rem' }}>
+                  عدد الخيارات
+                </label>
+                <input 
+                  type="number" 
+                  className="form-control text-center"
+                  value={answersCount}
+                  onChange={(e) => setAnswersCount(parseInt(e.target.value) || 2)}
+                  min={2} 
+                  max={5}
+                  style={{ 
+                    backgroundColor: 'rgba(255,245,237,0.1)',
+                    border: answersCount < 2 || answersCount > 5 ? '2px solid #dc3545' : '1px solid rgba(238,96,96,0.3)',
+                    borderRadius: '8px',
+                    color: '#fff5ed',
+                    fontSize: '1.1rem',
+                    fontWeight: 'bold'
+                  }}
+                />
+                <small style={{ color: '#89837f', fontSize: '0.75rem' }}>من 2 إلى 5</small>
+              </div>
             </div>
-            {/* Difficulties multi-select */}
-            <div className="d-flex align-items-center gap-2 flex-wrap">
-              <label className="form-label m-0">الصعوبة</label>
+          </div>
+          {/* Difficulty Selection */}
+          <div className="mb-4">
+            <label className="form-label mb-3 d-block text-center" style={{ color: '#fff5ed', fontSize: '1rem', fontWeight: 'bold' }}>
+              مستوى الصعوبة
+            </label>
+            <div className="d-flex justify-content-center gap-2 flex-wrap">
               {['easy','medium','hard'].map(d => (
                 <button
                   key={d}
                   type="button"
-                  className="btn btn-sm"
+                  className="btn"
                   style={{
-                    backgroundColor: selDifficulties.includes(d) ? '#ee6060' : 'transparent',
-                    color: selDifficulties.includes(d) ? 'white' : '#ee6060',
-                    border: `1px solid #ee6060`
+                    backgroundColor: selDifficulties.includes(d) ? '#ee6060' : 'rgba(255,245,237,0.1)',
+                    color: selDifficulties.includes(d) ? '#fff5ed' : '#ee6060',
+                    border: 'none',
+                    borderRadius: '20px',
+                    padding: '8px 20px',
+                    fontSize: '0.9rem',
+                    fontWeight: '500',
+                    boxShadow: selDifficulties.includes(d) ? '0 2px 8px rgba(238,96,96,0.3)' : '0 2px 4px rgba(0,0,0,0.1)',
+                    transition: 'all 0.2s ease'
                   }}
                   onClick={() => {
                     const next = selDifficulties.includes(d) ? selDifficulties.filter(x=>x!==d) : [...selDifficulties, d]
-                    setSelDifficulties(next.length ? next : selDifficulties) // prevent empty via UI; we'll still guard on Yes
+                    setSelDifficulties(next.length ? next : selDifficulties)
                   }}
                 >
                   {d==='easy'?'سهل':d==='medium'?'متوسط':'صعب'}
                 </button>
               ))}
             </div>
-            {/* Types multi-select */}
-            <div className="d-flex align-items-center gap-2 flex-wrap">
-              <label className="form-label m-0">نوع الأسئلة</label>
+          </div>
+
+          {/* Question Types Selection */}
+          <div className="mb-4">
+            <label className="form-label mb-3 d-block text-center" style={{ color: '#fff5ed', fontSize: '1rem', fontWeight: 'bold' }}>
+              أنواع الأسئلة
+            </label>
+            <div className="d-flex justify-content-center gap-2 flex-wrap">
               {[{k:'mcq',l:'اختيار واحد'}, {k:'mcma',l:'اختيارات متعددة'}, {k:'tf',l:'صح/غلط'}, {k:'fitb',l:'فراغ'}].map(({k,l}) => (
                 <button
                   key={k}
                   type="button"
-                  className="btn btn-sm"
+                  className="btn"
                   style={{
-                    backgroundColor: selTypes.includes(k) ? '#ee6060' : 'transparent',
-                    color: selTypes.includes(k) ? 'white' : '#ee6060',
-                    border: `1px solid #ee6060`
+                    backgroundColor: selTypes.includes(k) ? '#ee6060' : 'rgba(255,245,237,0.1)',
+                    color: selTypes.includes(k) ? '#fff5ed' : '#ee6060',
+                    border: 'none',
+                    borderRadius: '20px',
+                    padding: '8px 16px',
+                    fontSize: '0.85rem',
+                    fontWeight: '500',
+                    boxShadow: selTypes.includes(k) ? '0 2px 8px rgba(238,96,96,0.3)' : '0 2px 4px rgba(0,0,0,0.1)',
+                    transition: 'all 0.2s ease'
                   }}
                   onClick={() => {
                     const next = selTypes.includes(k) ? selTypes.filter(x=>x!==k) : [...selTypes, k]
@@ -897,81 +959,164 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                 >{l}</button>
               ))}
             </div>
-            {/* Timer controls */}
-            <div className="d-flex align-items-center gap-2 flex-wrap">
-              <div className="form-check form-switch">
-                <input
-                  className="form-check-input"
-                  type="checkbox"
-                  id={`timer-switch-${message.id}`}
-                  checked={timerEnabled}
-                  onChange={(e) => setTimerEnabled(e.target.checked)}
-                  style={{
-                    backgroundColor: timerEnabled ? '#ee6060' : '#cec5bf',
-                    borderColor: '#ee6060'
-                  }}
-                />
-                <label className="form-check-label" htmlFor={`timer-switch-${message.id}`}>
+          </div>
+          {/* Advanced Options */}
+          <div className="mb-4">
+            <label className="form-label mb-3 d-block text-center" style={{ color: '#fff5ed', fontSize: '1rem', fontWeight: 'bold' }}>
+              خيارات متقدمة
+            </label>
+            
+            {/* Timer Section */}
+            <div className="d-flex justify-content-center align-items-center gap-4 mb-3 flex-wrap">
+              <div className="d-flex align-items-center gap-2">
+                <div 
+                  className="form-check form-switch"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setTimerEnabled(!timerEnabled)}
+                >
+                  <div style={{
+                    width: '48px',
+                    height: '24px',
+                    backgroundColor: timerEnabled ? '#ee6060' : 'rgba(255,245,237,0.2)',
+                    borderRadius: '12px',
+                    position: 'relative',
+                    transition: 'all 0.2s ease',
+                    cursor: 'pointer'
+                  }}>
+                    <div style={{
+                      width: '20px',
+                      height: '20px',
+                      backgroundColor: '#fff5ed',
+                      borderRadius: '50%',
+                      position: 'absolute',
+                      top: '2px',
+                      left: timerEnabled ? '26px' : '2px',
+                      transition: 'all 0.2s ease',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                    }}></div>
+                  </div>
+                </div>
+                <label style={{ color: '#fff5ed', fontSize: '0.9rem', cursor: 'pointer' }} onClick={() => setTimerEnabled(!timerEnabled)}>
                   مؤقت
                 </label>
               </div>
-              {timerEnabled && (
-                <div className="d-flex align-items-center gap-1">
-                  <input
-                    type="number"
-                    className="form-control"
-                    value={timerMinutes}
-                    onChange={(e) => setTimerMinutes(Math.max(1, Math.min(60, parseInt(e.target.value || '10', 10))))}
-                    min={1}
-                    max={60}
-                    style={{ width: 70 }}
-                  />
-                  <small className="text-muted">دقيقة</small>
-                </div>
-              )}
+              
+              <AnimatePresence>
+                {timerEnabled && (
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    className="d-flex align-items-center gap-2"
+                  >
+                    <input
+                      type="number"
+                      className="form-control text-center"
+                      value={timerMinutes}
+                      onChange={(e) => setTimerMinutes(Math.max(1, Math.min(60, parseInt(e.target.value || '10', 10))))}
+                      min={1}
+                      max={60}
+                      style={{ 
+                        width: '80px',
+                        backgroundColor: 'rgba(255,245,237,0.1)',
+                        border: '1px solid rgba(238,96,96,0.3)',
+                        borderRadius: '8px',
+                        color: '#fff5ed',
+                        fontSize: '0.9rem'
+                      }}
+                    />
+                    <small style={{ color: '#89837f' }}>دقيقة</small>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
-            {/* Hints toggle */}
-            <div className="d-flex align-items-center gap-2">
-              <div className="form-check form-switch">
-                <input
-                  className="form-check-input"
-                  type="checkbox"
-                  id={`hints-switch-${message.id}`}
-                  checked={hintsEnabled}
-                  onChange={(e) => setHintsEnabled(e.target.checked)}
-                  style={{
-                    backgroundColor: hintsEnabled ? '#ee6060' : '#cec5bf',
-                    borderColor: '#ee6060'
-                  }}
-                />
-                <label className="form-check-label" htmlFor={`hints-switch-${message.id}`}>
+
+            {/* Hints and Feedback Toggles */}
+            <div className="d-flex justify-content-center gap-6 flex-wrap">
+              <div className="d-flex align-items-center gap-2">
+                <div 
+                  className="form-check form-switch"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setHintsEnabled(!hintsEnabled)}
+                >
+                  <div style={{
+                    width: '48px',
+                    height: '24px',
+                    backgroundColor: hintsEnabled ? '#ee6060' : 'rgba(255,245,237,0.2)',
+                    borderRadius: '12px',
+                    position: 'relative',
+                    transition: 'all 0.2s ease',
+                    cursor: 'pointer'
+                  }}>
+                    <div style={{
+                      width: '20px',
+                      height: '20px',
+                      backgroundColor: '#fff5ed',
+                      borderRadius: '50%',
+                      position: 'absolute',
+                      top: '2px',
+                      left: hintsEnabled ? '26px' : '2px',
+                      transition: 'all 0.2s ease',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                    }}></div>
+                  </div>
+                </div>
+                <label style={{ color: '#fff5ed', fontSize: '0.9rem', cursor: 'pointer' }} onClick={() => setHintsEnabled(!hintsEnabled)}>
                   تلميحات
                 </label>
               </div>
-            </div>
-            {/* Immediate Feedback toggle */}
-            <div className="d-flex align-items-center gap-2">
-              <div className="form-check form-switch">
-                <input
-                  className="form-check-input"
-                  type="checkbox"
-                  id={`feedback-switch-${message.id}`}
-                  checked={immediateFeedback}
-                  onChange={(e) => setImmediateFeedback(e.target.checked)}
-                  style={{
-                    backgroundColor: immediateFeedback ? '#ee6060' : '#cec5bf',
-                    borderColor: '#ee6060'
-                  }}
-                />
-                <label className="form-check-label" htmlFor={`feedback-switch-${message.id}`}>
+
+              <div className="d-flex align-items-center gap-2">
+                <div 
+                  className="form-check form-switch"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setImmediateFeedback(!immediateFeedback)}
+                >
+                  <div style={{
+                    width: '48px',
+                    height: '24px',
+                    backgroundColor: immediateFeedback ? '#ee6060' : 'rgba(255,245,237,0.2)',
+                    borderRadius: '12px',
+                    position: 'relative',
+                    transition: 'all 0.2s ease',
+                    cursor: 'pointer'
+                  }}>
+                    <div style={{
+                      width: '20px',
+                      height: '20px',
+                      backgroundColor: '#fff5ed',
+                      borderRadius: '50%',
+                      position: 'absolute',
+                      top: '2px',
+                      left: immediateFeedback ? '26px' : '2px',
+                      transition: 'all 0.2s ease',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                    }}></div>
+                  </div>
+                </div>
+                <label style={{ color: '#fff5ed', fontSize: '0.9rem', cursor: 'pointer' }} onClick={() => setImmediateFeedback(!immediateFeedback)}>
                   ردود فعل فورية
                 </label>
               </div>
             </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="d-flex justify-content-center gap-3 pt-3" style={{ borderTop: '1px solid rgba(238,96,96,0.2)' }}>
             <button
               type="button"
               className="btn d-flex align-items-center gap-2"
-              style={{ backgroundColor: '#ee6060', borderColor: '#ee6060', color: '#fff5ed' }}
+              style={{ 
+                backgroundColor: '#ee6060', 
+                border: 'none',
+                borderRadius: '25px',
+                color: '#fff5ed',
+                padding: '12px 24px',
+                fontSize: '1rem',
+                fontWeight: 'bold',
+                boxShadow: '0 4px 12px rgba(238,96,96,0.3)',
+                transition: 'all 0.2s ease'
+              }}
               onClick={() => {
                 const questions = Math.max(2, Math.min(40, questionsCount))
                 const answers = Math.max(2, Math.min(5, answersCount))
@@ -997,21 +1142,35 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
             >
               {quizGenerating ? (
                 <>
-                  <Loader2 size={16} className="animate-spin" />
+                  <Loader2 size={18} className="animate-spin" />
                   <span>جاري إنشاء الاختبار...</span>
                 </>
               ) : (
-                <span>نعم، أنشئ الاختبار</span>
+                <>
+                  <span>أنشئ الاختبار</span>
+                </>
               )}
             </button>
+            
             <button
               type="button"
-              className="btn btn-outline-secondary"
+              className="btn"
+              style={{
+                backgroundColor: 'transparent',
+                border: '2px solid rgba(255,245,237,0.3)',
+                borderRadius: '25px',
+                color: '#fff5ed',
+                padding: '12px 24px',
+                fontSize: '1rem',
+                transition: 'all 0.2s ease'
+              }}
               onClick={() => onCancelQuiz && onCancelQuiz(message.id)}
             >
-              لا
+              إلغاء
             </button>
           </div>
+
+          </motion.div>
         </div>
       )}
       {message.isPdfPreview && (
