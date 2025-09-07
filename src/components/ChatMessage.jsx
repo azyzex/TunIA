@@ -441,7 +441,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                     lineHeight: '1.6'
                   }}>{qi + 1}. {q.question}</div>
                   {q.hint && (
-                    <div className="mb-2">
+                    <div className="mb-3 text-center">
                       <button
                         type="button"
                         className="btn btn-sm"
@@ -451,10 +451,14 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                           setHintsVisible(next)
                         }}
                         style={{ 
-                          fontSize: '0.8rem',
-                          backgroundColor: '#fff5ed',
-                          borderColor: '#ee6060',
-                          color: '#ee6060'
+                          fontSize: '0.85rem',
+                          backgroundColor: hintsVisible[qi] ? '#ee6060' : 'rgba(255,245,237,0.1)',
+                          border: 'none',
+                          borderRadius: '20px',
+                          color: hintsVisible[qi] ? '#fff5ed' : '#ee6060',
+                          padding: '8px 16px',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+                          transition: 'all 0.2s ease'
                         }}
                       >
                         💡 {hintsVisible[qi] ? 'إخفاء التلميحة' : 'إظهار تلميحة'}
