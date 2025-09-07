@@ -233,10 +233,22 @@ function App() {
         pdfLen: pdfText?.length || 0,
         pdfExport: Boolean(pdfExport)
       });
+      // Always enable web search and URL fetch. Also, append today's date hint to the text for time-sensitive queries.
+      const today = new Date();
+      const todayStr = today.toLocaleDateString('en-CA'); // YYYY-MM-DD
+      const stampedText = `${text}\n\n(Reference date: ${todayStr})`;
       const res = await fetch('http://localhost:3001/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text, history, pdfText, webSearch, fetchUrl, image, pdfExport })
+        body: JSON.stringify({ 
+          message: stampedText, 
+          history, 
+          pdfText, 
+          webSearch: true, 
+          fetchUrl: true, 
+          image, 
+          pdfExport 
+        })
       });
       const data = await res.json();
       if (!res.ok) {

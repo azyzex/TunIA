@@ -825,9 +825,12 @@ ${contextSnippets.map((t, i) => `[${i + 1}] ${t}`).join("\n\n")}
       const truncated = fetchedPageText.length >= 50000;
       return res.json({ reply: fetchedPageText, truncated });
     }
-    if (webSearch && message) {
+  // Force web search regardless of client flag
+  if (message) {
       try {
-        const q = encodeURIComponent(String(message).slice(0, 200));
+    // Prepend today's date to bias results freshness
+    const today = new Date().toISOString().slice(0,10);
+    const q = encodeURIComponent(`[${today}] ` + String(message).slice(0, 200));
         const ddgUrl = `https://api.duckduckgo.com/?q=${q}&format=json&no_redirect=1&no_html=1&skip_disambig=1`;
         const ddgResp = await fetch(ddgUrl, {
           headers: { "User-Agent": "Mozilla/5.0" },
@@ -950,7 +953,7 @@ ${contextSnippets.map((t, i) => `[${i + 1}] ${t}`).join("\n\n")}
     // Add the latest user message
     let userPrompt = message || "";
     // Include all available context snippets together (web search, fetched URL text, fetched search pages, then PDF)
-    if (webSearchSnippet) {
+  if (webSearchSnippet) {
       userPrompt += `\n\n${webSearchSnippet}`;
     }
     if (fetchedPageText) {

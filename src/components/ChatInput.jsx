@@ -422,19 +422,7 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
                       <ImageIcon size={16} className="me-2" style={{ color: '#ee6060' }} />
                       رفع صورة
                     </button>
-                    <button 
-                      className="dropdown-item d-flex align-items-center justify-content-between py-2" 
-                      type="button" 
-                      onClick={toggleCombinedTool} 
-                      disabled={disabled}
-                      style={{ color: '#89837f', backgroundColor: 'transparent', border: 'none' }}
-                    >
-                      <span className="d-flex align-items-center">
-                        <Search size={16} className="me-2" style={{ color: '#ee6060' }} />
-                        بحث الويب
-                      </span>
-                      {combinedToolEnabled && <span className="badge rounded-pill" style={{ backgroundColor: '#ee6060' }}>مفعل</span>}
-                    </button>
+                    {/** Web search option removed: always enabled server-side */}
                     <button 
                       className="dropdown-item d-flex align-items-center justify-content-between py-2" 
                       type="button" 
@@ -466,7 +454,6 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
               accept=".pdf"
               onChange={handleFileSelect}
               className="d-none"
-              disabled={combinedToolEnabled}
             />
             <input
               ref={imageInputRef}
@@ -474,19 +461,9 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
               accept="image/jpeg,image/png,image/webp,image/jpg"
               onChange={handleImageSelect}
               className="d-none"
-              disabled={combinedToolEnabled}
             />
             <AnimatePresence>
-              {combinedToolEnabled && (
-                <motion.div 
-                  initial={{ opacity: 0, y: -5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="mt-2 small text-center"
-                  style={{ color: '#ee6060' }}>
-                  باش نخدم بحث على الويب ونجيب محتوى أي رابط تكتبّو في سؤالك.
-                </motion.div>
-              )}
+              {/** Removed combinedToolEnabled notice: web search is always on */}
               {quizMode && (
                 <motion.div 
                   initial={{ opacity: 0, y: -5 }}
