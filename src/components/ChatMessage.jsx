@@ -243,7 +243,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -20 }}
-      className={`d-flex mb-3 ${isUser ? 'justify-content-end' : (message.isQuiz ? 'justify-content-center' : 'justify-content-start')}`}
+      className={`d-flex mb-3 ${isUser ? 'justify-content-end' : (message.isQuiz || message.isQuizConfirm ? 'justify-content-center' : 'justify-content-start')}`}
     >
       <div className={`d-flex align-items-start ${isUser ? 'flex-row-reverse' : ''}`}>
         {/* Avatar */}
@@ -829,7 +829,6 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
         )}
       </div>
       {message.isQuizConfirm && (
-        <div className="d-flex justify-content-center">
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1171,7 +1170,6 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
           </div>
 
           </motion.div>
-        </div>
       )}
       {message.isPdfPreview && (
         <div className="mt-3 mb-2">
