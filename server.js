@@ -143,6 +143,32 @@ function enforceTunisianLexicon(input) {
   return text;
 }
 
+// Utility: lightweight detection of weather/temperature-like questions
+function isWeatherLike(msg) {
+  if (!msg) return false;
+  const s = String(msg);
+  return (
+    /\b(temp|temperature|weather|meteo)\b/i.test(s) ||
+    /طقس|حرارة|درجة\s*الحرارة|سخانة/.test(s)
+  );
+}
+
+// Utility: detect if a location is mentioned; basic heuristics for Tunisian cities + generic patterns
+function hasLocationMention(msg) {
+  if (!msg) return false;
+  const s = String(msg);
+  // Common Tunisian place names (cities/governorates) + country
+  const places =
+    /(تونس|تونس\s*العاصمة|Tunis|Tunisia|Sfax|صفاقس|Sousse|سوسة|Gabes|قابس|Bizerte|بنزرت|Nabeul|نابل|Ariana|أريانة|Ben\s*Arous|بن\s*عروس|Manouba|منوبة|Kairouan|القيروان|Kasserine|القصرين|Gafsa|قفصة|Tozeur|توزر|Kebili|قبلي|Medenine|مدنين|Tataouine|تطاوين|Siliana|سليانة|Zaghouan|زغوان|Mahdia|المهدية|Monastir|المنستير|Beja|باجة|Jendouba|جندوبة|Kef|الكاف)/i;
+  if (places.test(s)) return true;
+  // Generic prepositions indicating a place, e.g., "في سوسة", "in Tunis"
+  if (
+    /(\b(in|at|near)\b\s+\p{L}+)|(في\s+[\p{L}\-]+)|(بـ\s*[\p{L}\-]+)/iu.test(s)
+  )
+    return true;
+  return false;
+}
+
 // Style guide to steer Gemini to proper Tunisian Darija usage and Markdown formatting
 const DARIJA_STYLE_GUIDE = `
 قواعد الأسلوب الصارمة:
@@ -157,7 +183,13 @@ const DARIJA_STYLE_GUIDE = `
 - كان ما فهمتش سؤال المستخدم، إسألو توضيح: "شنية تقصد بـ ...؟" بلا تعابير جارحة.
 - ما تستعملش "يا حسرة" كان للنوستالجيا فقط.
 - لو النص متوفّر من رابط/بحث، اعتمد عليه وتجنّب الاعتذارات من نوع "ما نجمش نفتح الروابط".
+- لو النص متوفّر من رابط/بحث، اعتمد عليه وتجنّب الاعتذارات من نوع "ما نجمش نفتح الروابط"، وما تقولش "الروابط اللي عطيتني"؛ قول بدلها "الروابط اللي عندي" ولا "الروابط اللي لقيتها".
 - ما تذكرش المنصّة ولا مزوّد الخدمة في الرد.
+
+هوية وافتراضات تونسية:
+- انت مساعد أكاديمي تونسي موجّه للتوانسة. كي يسألك المستخدم "شكونك/من تكون" قول إنك مساعد ذكي لتونس وتركّز على خدمة الطالب التونسي.
+- الافتراضات الافتراضية: إذا السؤال يتعلّق بالطقس/درجة الحرارة/الوقت/أحداث محلية وما حدّدش المكان، إفترض الدولة: تونس، والمدينة/الولاية: تونس (العاصمة).
+- اعتمد التوقيت Africa/Tunis، والوحدات المترية (درجة مئوية، كم، كغ). في الفلوس إفترض الدينار التونسي (TND) إلا إذا المستخدم حدّد غيره.
 
 `;
 
@@ -241,9 +273,12 @@ app.post("/api/chat", async (req, res) => {
     // Quiz generation mode: return a structured quiz instead of a normal reply
     if (quizMode && typeof message === "string" && message.trim().length) {
       console.log("🎯 Quiz mode detected!");
-      console.log("📄 PDF Text received:", pdfText ? `${pdfText.substring(0, 100)}...` : "NO PDF TEXT");
+      console.log(
+        "📄 PDF Text received:",
+        pdfText ? `${pdfText.substring(0, 100)}...` : "NO PDF TEXT"
+      );
       console.log("📝 Subject:", message);
-      
+
       const subject = message.trim().slice(0, 400);
       const qCount = Math.max(
         2,
@@ -825,12 +860,21 @@ ${contextSnippets.map((t, i) => `[${i + 1}] ${t}`).join("\n\n")}
       const truncated = fetchedPageText.length >= 50000;
       return res.json({ reply: fetchedPageText, truncated });
     }
-  // Force web search regardless of client flag
-  if (message) {
+    // Force web search regardless of client flag
+    if (message) {
       try {
-    // Prepend today's date to bias results freshness
-    const today = new Date().toISOString().slice(0,10);
-    const q = encodeURIComponent(`[${today}] ` + String(message).slice(0, 200));
+        // Prepend today's date to bias results freshness; also default location to Tunis, Tunisia for weather-like queries
+        const today = new Date().toISOString().slice(0, 10);
+        let baseQuery = String(message).slice(0, 200);
+        const needsDefaultLoc =
+          isWeatherLike(message) && !hasLocationMention(message);
+        if (needsDefaultLoc) {
+          baseQuery = `${String(message).slice(
+            0,
+            200
+          )} weather today temperature in Tunis, Tunisia`;
+        }
+        const q = encodeURIComponent(`[${today}] ` + baseQuery);
         const ddgUrl = `https://api.duckduckgo.com/?q=${q}&format=json&no_redirect=1&no_html=1&skip_disambig=1`;
         const ddgResp = await fetch(ddgUrl, {
           headers: { "User-Agent": "Mozilla/5.0" },
@@ -888,8 +932,10 @@ ${contextSnippets.map((t, i) => `[${i + 1}] ${t}`).join("\n\n")}
           .map((r, i) => `${i + 1}. ${r.title} - ${r.url}`)
           .join("\n");
         webSearchSnippet = [
+          needsDefaultLoc &&
+            `بما إنك ما حدّدتش البلاصة، اعتبرنا المكان الافتراضي: تونس العاصمة، تونس (Africa/Tunis).`,
           abstract && `نتيجة مختصرة: ${abstract}`,
-          webResults.length ? `روابط مفيدة:\n${list}` : "",
+          webResults.length ? `روابط لقيتها:\n${list}` : "",
         ]
           .filter(Boolean)
           .join("\n\n");
@@ -952,8 +998,12 @@ ${contextSnippets.map((t, i) => `[${i + 1}] ${t}`).join("\n\n")}
     contents.unshift({ role: "user", parts: [{ text: DARIJA_STYLE_GUIDE }] });
     // Add the latest user message
     let userPrompt = message || "";
+    // If weather-like and no location, add explicit instruction for default location/timezone/units
+    if (isWeatherLike(userPrompt) && !hasLocationMention(userPrompt)) {
+      userPrompt += `\n\nتنبيه داخلي: ما فماش مكان مذكور في السؤال، اعتبر المكان الافتراضي: تونس العاصمة، تونس. اعتمد التوقيت Africa/Tunis والوحدة: درجة مئوية.`;
+    }
     // Include all available context snippets together (web search, fetched URL text, fetched search pages, then PDF)
-  if (webSearchSnippet) {
+    if (webSearchSnippet) {
       userPrompt += `\n\n${webSearchSnippet}`;
     }
     if (fetchedPageText) {
