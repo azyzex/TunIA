@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import ReactMarkdown from 'react-markdown'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Bot, User, FileText, RotateCcw, Pencil, Copy, Download, Loader2 } from 'lucide-react'
 
 const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, onDownloadPdf, onConfirmPdfDownload, onConfirmQuiz, onCancelQuiz, retryCount, downloadingPdf, generatingPreview, quizGenerating = false }) => {
@@ -463,32 +463,41 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                       >
                         💡 {hintsVisible[qi] ? 'إخفاء التلميحة' : 'إظهار تلميحة'}
                       </button>
-                      {hintsVisible[qi] && (
-                        <div className="mt-2 p-3 rounded" style={{ 
-                          fontSize: '0.85rem', 
-                          color: '#fff5ed', 
-                          fontStyle: 'italic',
-                          backgroundColor: '#89837f',
-                          border: '2px dashed #ee6060',
-                          borderRadius: '8px',
-                          position: 'relative'
-                        }}>
-                          <div style={{ 
-                            position: 'absolute',
-                            top: '-8px',
-                            left: '12px',
-                            backgroundColor: '#89837f',
-                            color: '#ee6060',
-                            fontSize: '0.75rem',
-                            fontWeight: 'bold',
-                            paddingLeft: '4px',
-                            paddingRight: '4px'
-                          }}>
-                            💡 تلميحة
-                          </div>
-                          {q.hint}
-                        </div>
-                      )}
+                      <AnimatePresence>
+                        {hintsVisible[qi] && (
+                          <motion.div 
+                            initial={{ opacity: 0, scale: 0.95, y: -5 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: -5 }}
+                            transition={{ duration: 0.2, ease: 'easeOut' }}
+                            className="mt-3 p-4 rounded" 
+                            style={{ 
+                              fontSize: '0.9rem', 
+                              color: '#fff5ed', 
+                              fontStyle: 'italic',
+                              backgroundColor: '#89837f',
+                              border: '2px dashed #ee6060',
+                              borderRadius: '12px',
+                              position: 'relative'
+                            }}
+                          >
+                            <div style={{ 
+                              position: 'absolute',
+                              top: '-10px',
+                              left: '16px',
+                              backgroundColor: '#89837f',
+                              color: '#ee6060',
+                              fontSize: '0.8rem',
+                              fontWeight: 'bold',
+                              padding: '2px 8px',
+                              borderRadius: '4px'
+                            }}>
+                              💡 تلميحة
+                            </div>
+                            {q.hint}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
                   )}
                   {type === 'fitb' ? (
