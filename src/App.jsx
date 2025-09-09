@@ -6,12 +6,16 @@ import ChatMessage from './components/ChatMessage'
 import ChatInput from './components/ChatInput'
 import WelcomeScreen from './components/WelcomeScreen'
 import './App.css'
+import AuthScreen from './components/AuthScreen'
+import { supabase, ensureProfile, createConversation, addUserMessage, addAIMessage, fetchConversationMessages } from '../supabaseClient'
 // PDF.js: bundle worker locally to avoid network fetch issues
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
 function App() {
+  const [user, setUser] = useState(null);
+  const [conversationId, setConversationId] = useState(null);
   // Remove showWelcome state since we're skipping the welcome screen
   const [messages, setMessages] = useState([])
   const [isLoading, setIsLoading] = useState(false)
@@ -28,9 +32,20 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }
 
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages])
+  useEffect(() => { scrollToBottom() }, [messages])
+
+  // Auth session listener
+  useEffect(()=>{
+    let mounted = true;
+    (async()=>{
+      const { data:{ session } } = await supabase.auth.getSession();
+      if (mounted && session?.user){ setUser(session.user); await ensureProfile(session.user);}    
+    })();
+    const { data: sub } = supabase.auth.onAuthStateChange((_evt, session)=>{
+      if (session?.user){ setUser(session.user); ensureProfile(session.user);} else { setUser(null); setConversationId(null); setMessages([]);}  
+    });
+    return ()=>{ mounted=false; sub.subscription.unsubscribe(); };
+  },[]);
 
   // Event listener for quiz regeneration with custom parameters
   useEffect(() => {
@@ -183,24 +198,25 @@ function App() {
   }
 
   const handleSendMessage = async ({ text, file, webSearch, fetchUrl, image, pdfExport, quizMode: sendQuizMode }) => {
+    if (!user) return; // Guard
     if (!text.trim() && !file && !image) return;
 
-    const newMessage = {
-      id: messages.length + 1,
-      text: text,
-      sender: 'user',
-      timestamp: new Date(),
-  file: file,
-  imagePreview: image && image.previewUrl ? image.previewUrl : null
-    };
+    // Ensure conversation
+    let convId = conversationId;
+    if (!convId){
+      try { const conv = await createConversation(user.id, text.slice(0,60)); convId = conv.id; setConversationId(conv.id);} catch(e){ console.error('createConversation', e);} }
 
-    // Prepare history: last 30 messages before this one, excluding file
+    const newMessage = { id: messages.length + 1, text, sender:'user', timestamp:new Date(), file, imagePreview: image?.previewUrl || null };
+
+  // Prepare history: last 30 messages before this one, excluding file
     const history = [...messages].slice(-30).map(msg => ({
       sender: msg.sender,
       text: msg.text
     }));
 
   setMessages(prev => [...prev, newMessage]);
+  // Persist user message
+  try { if (convId) await addUserMessage(convId, user.id, text); } catch(e){ console.warn('persist user message failed', e); }
     // If quiz mode is on, show a confirmation message instead of calling the server
     if (sendQuizMode) {
       const confirmMsg = {
@@ -276,7 +292,9 @@ function App() {
           pdfContent: data.pdfContent || null
         };
       }
-      setMessages(prev => [...prev, aiResponse]);
+  setMessages(prev => [...prev, aiResponse]);
+  // Persist AI message
+  try { if (convId) await addAIMessage(convId, aiResponse.text, { isPdfExport: aiResponse.isPdfExport }); } catch(e){ console.warn('persist ai message failed', e); }
     } catch (err) {
       console.error('Fetch/chat error:', err);
       const friendly = 'صارت مشكلة تقنية مؤقتة في الخدمة. جرّب بعد شوية ولا تأكّد إلي الخادم شغّال.';
@@ -480,12 +498,19 @@ async function readPDFFile(file) {
     await handleSendMessage({ text: newText })
   }
 
+  if (!user){
+    return <AuthScreen onAuth={(u)=>{ setUser(u); startChat(); }} />
+  }
+
   return (
     <div className="min-vh-100" style={{ 
       backgroundColor: '#202123', 
       background: 'linear-gradient(180deg, #343541 0%, #202123 100%)',
       color: '#f8f9fa' 
     }}>
+      <div className='position-fixed top-0 end-0 p-3 d-flex gap-2' style={{zIndex:50}}>
+        <button className='btn btn-sm btn-outline-light' onClick={async()=>{ await supabase.auth.signOut(); }}>Sign out</button>
+      </div>
       {/* Removed ChatHeader - clean minimalist design like ChatGPT */}
       {/* Edit Modal */}
       {editModal.open && (
