@@ -172,11 +172,11 @@ export default function AuthScreen({ onAuth }) {
                   {loading ? 'Please wait…' : 'Create account'}
                 </button>
                 
-                <div className="mt-3 d-flex justify-content-center align-items-center">
-                  <span className="text-secondary me-2" style={{fontSize:'0.85rem'}}>
+                <div className="mt-4 d-flex justify-content-between align-items-center">
+                  <span className="text-secondary" style={{fontSize:'0.85rem'}}>
                     Already have an account?
                   </span>
-                  <button className="btn btn-sm text-light" type="button" disabled={loading}
+                  <button className="btn btn-sm btn-outline-light" type="button" disabled={loading}
                     onClick={() => {
                       setMode('signin');  // First flip
                       setTimeout(() => {
@@ -186,7 +186,7 @@ export default function AuthScreen({ onAuth }) {
                         }, 400);
                       }, 600);  // Wait for flip to complete
                     }}
-                    style={{padding:'4px 10px',fontSize:'0.85rem',background:'transparent'}}>
+                    style={{borderRadius:30,padding:'4px 14px',fontSize:'0.75rem',border:'1px solid #666',background:'rgba(255,255,255,0.05)'}}>
                     Sign in
                   </button>
                 </div>
