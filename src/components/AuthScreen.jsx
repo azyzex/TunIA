@@ -10,6 +10,7 @@ export default function AuthScreen({ onAuth }) {
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [isGrowing, setIsGrowing] = useState(false);
 
   const mainColor = '#ee6060';
 
@@ -56,10 +57,20 @@ export default function AuthScreen({ onAuth }) {
           className="auth-card shadow-lg" 
           style={{
             maxWidth:480,width:'100%',borderRadius:24,
-            minHeight:520,position:'relative',transformStyle:'preserve-3d'
+            position:'relative',transformStyle:'preserve-3d'
           }}
-          animate={{ rotateY: mode === 'signup' ? 180 : 0 }}
-          transition={{ duration: 0.6, ease: "easeInOut" }}
+          animate={{ 
+            rotateY: mode === 'signup' ? 180 : 0,
+            height: (mode === 'signup' && !isGrowing) ? 700 : (mode === 'signin' && isGrowing) ? 520 : (mode === 'signup') ? 700 : 520
+          }}
+          transition={{ 
+            rotateY: { duration: 0.6, ease: "easeInOut", delay: mode === 'signup' ? 0.4 : 0 },
+            height: { 
+              duration: 0.4, 
+              ease: "easeOut",
+              delay: mode === 'signin' ? 0.6 : 0  // Delay height change when going to signin
+            }
+          }}
         >
           {/* Front face - Sign In */}
           <div className="p-4 p-md-5" style={{ 
@@ -99,7 +110,13 @@ export default function AuthScreen({ onAuth }) {
                 Don't have an account?
               </span>
               <button className="btn btn-sm btn-outline-light" type="button" disabled={loading}
-                onClick={()=>setMode('signup')}
+                onClick={() => {
+                  setIsGrowing(true);
+                  setTimeout(() => {
+                    setMode('signup');
+                    setTimeout(() => setIsGrowing(false), 50);
+                  }, 400); // Wait for height animation to finish before flipping
+                }}
                 style={{borderRadius:30,padding:'4px 14px',fontSize:'0.75rem',border:'1px solid #666',background:'rgba(255,255,255,0.05)'}}>
                 Create one
               </button>
@@ -118,47 +135,63 @@ export default function AuthScreen({ onAuth }) {
             background:'rgba(255,255,255,0.08)',
             backdropFilter:'blur(12px)',
             border:'1px solid rgba(255,255,255,0.15)',
-            borderRadius:24
+            borderRadius:24,
+            display: 'flex',
+            flexDirection: 'column'
           }}>
             <h2 className="mb-3 fw-bold" style={{color:'#fff',fontSize:'1.9rem'}}>TUNIA</h2>
             <p className="text-secondary mb-4" style={{fontSize:'0.95rem'}}>Sign up to start chatting in Tunisian Darija.</p>
-            <form onSubmit={submit} className="needs-validation" noValidate>
-              <div className="mb-3">
-                <label className="form-label text-light">Username</label>
-                <input type="text" className="form-control" required minLength={3} maxLength={40} disabled={loading}
-                  value={username} onChange={e=>setUsername(e.target.value.replace(/\s+/g,'').toLowerCase())} />
+            <form onSubmit={submit} className="needs-validation d-flex flex-column flex-grow-1" noValidate>
+              <div>
+                <div className="mb-3">
+                  <label className="form-label text-light">Username</label>
+                  <input type="text" className="form-control" required minLength={3} maxLength={40} disabled={loading}
+                    value={username} onChange={e=>setUsername(e.target.value.replace(/\s+/g,'').toLowerCase())} />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label text-light">Email</label>
+                  <input type="email" className="form-control" required disabled={loading}
+                    value={email} onChange={e=>setEmail(e.target.value)} style={{direction:'ltr'}} />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label text-light">Password</label>
+                  <input type="password" className="form-control" required minLength={6} disabled={loading}
+                    value={password} onChange={e=>setPassword(e.target.value)} />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label text-light">Confirm Password</label>
+                  <input type="password" className="form-control" required minLength={6} disabled={loading}
+                    value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} />
+                </div>
+                {error && <div className="alert alert-danger py-2 small">{error}</div>}
               </div>
-              <div className="mb-3">
-                <label className="form-label text-light">Email</label>
-                <input type="email" className="form-control" required disabled={loading}
-                  value={email} onChange={e=>setEmail(e.target.value)} style={{direction:'ltr'}} />
+              
+              <div className="mt-auto">
+                <button type="submit" className="btn w-100 fw-semibold" disabled={loading}
+                  style={{background:mainColor,color:'#fff',border:'none',padding:'12px 14px',borderRadius:14,boxShadow:'0 4px 16px rgba(238,96,96,0.35)',marginTop:'auto'}}>
+                  {loading ? 'Please wait…' : 'Create account'}
+                </button>
+                
+                <div className="mt-3 d-flex justify-content-center align-items-center">
+                  <span className="text-secondary me-2" style={{fontSize:'0.85rem'}}>
+                    Already have an account?
+                  </span>
+                  <button className="btn btn-sm text-light" type="button" disabled={loading}
+                    onClick={() => {
+                      setMode('signin');  // First flip
+                      setTimeout(() => {
+                        setIsGrowing(true);  // Then signal to start shrinking
+                        setTimeout(() => {
+                          setIsGrowing(false);  // Animation complete
+                        }, 400);
+                      }, 600);  // Wait for flip to complete
+                    }}
+                    style={{padding:'4px 10px',fontSize:'0.85rem',background:'transparent'}}>
+                    Sign in
+                  </button>
+                </div>
               </div>
-              <div className="mb-3">
-                <label className="form-label text-light">Password</label>
-                <input type="password" className="form-control" required minLength={6} disabled={loading}
-                  value={password} onChange={e=>setPassword(e.target.value)} />
-              </div>
-              <div className="mb-3">
-                <label className="form-label text-light">Confirm Password</label>
-                <input type="password" className="form-control" required minLength={6} disabled={loading}
-                  value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} />
-              </div>
-              {error && <div className="alert alert-danger py-2 small">{error}</div>}
-              <button type="submit" className="btn w-100 fw-semibold" disabled={loading}
-                style={{background:mainColor,color:'#fff',border:'none',padding:'12px 14px',borderRadius:14,boxShadow:'0 4px 16px rgba(238,96,96,0.35)'}}>
-                {loading ? 'Please wait…' : 'Create account'}
-              </button>
             </form>
-            <div className="mt-4 d-flex justify-content-between align-items-center">
-              <span className="text-secondary" style={{fontSize:'0.85rem'}}>
-                Already have an account?
-              </span>
-              <button className="btn btn-sm btn-outline-light" type="button" disabled={loading}
-                onClick={()=>setMode('signin')}
-                style={{borderRadius:30,padding:'4px 14px',fontSize:'0.75rem',border:'1px solid #666',background:'rgba(255,255,255,0.05)'}}>
-                Sign in
-              </button>
-            </div>
           </div>
         </motion.div>
       </div>
