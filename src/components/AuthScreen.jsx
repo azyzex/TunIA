@@ -11,8 +11,16 @@ export default function AuthScreen({ onAuth }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isGrowing, setIsGrowing] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
 
   const mainColor = '#ee6060';
+  
+  // Disable initial animation
+  React.useEffect(() => {
+    // Give time for the component to be fully rendered
+    const timer = setTimeout(() => setInitialLoad(false), 300);
+    return () => clearTimeout(timer);
+  }, []);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -57,18 +65,23 @@ export default function AuthScreen({ onAuth }) {
           className="auth-card shadow-lg" 
           style={{
             maxWidth:480,width:'100%',borderRadius:24,
-            position:'relative',transformStyle:'preserve-3d'
+            position:'relative',transformStyle:'preserve-3d',
+            height: 520 // Default height for initial render
+          }}
+          initial={{ 
+            rotateY: 0, 
+            height: 520 
           }}
           animate={{ 
             rotateY: mode === 'signup' ? 180 : 0,
             height: (mode === 'signup' && !isGrowing) ? 700 : (mode === 'signin' && isGrowing) ? 520 : (mode === 'signup') ? 700 : 520
           }}
-          transition={{ 
+          transition={initialLoad ? { duration: 0 } : { 
             rotateY: { duration: 0.6, ease: "easeInOut", delay: mode === 'signup' ? 0.4 : 0 },
             height: { 
               duration: 0.4, 
               ease: "easeOut",
-              delay: mode === 'signin' ? 0.6 : 0  // Delay height change when going to signin
+              delay: mode === 'signin' ? 0.6 : 0
             }
           }}
         >
