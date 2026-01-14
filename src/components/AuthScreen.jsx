@@ -27,6 +27,13 @@ export default function AuthScreen({ onAuth }) {
     setError(null);
     setLoading(true);
     try {
+      // DEV BYPASS: Static login for testing
+      if (email === 'admin1' && password === 'admin1') {
+        const fakeUser = { id: 'dev-user-123', email: 'admin1@test.dev' };
+        onAuth(fakeUser);
+        return;
+      }
+
       if (mode === 'signup') {
         if (!username.trim()) throw new Error('Username required');
         if (username.length < 3) throw new Error('Username too short');
@@ -36,6 +43,10 @@ export default function AuthScreen({ onAuth }) {
       let result;
       if (mode === 'signup') {
         result = await supabase.auth.signUp({ email, password, options: { data: { username } } });
+        // Check if email already exists (Supabase may return success even if email exists)
+        if (result.data?.user && result.data.user.identities?.length === 0) {
+          throw new Error('Email already registered. Please sign in instead.');
+        }
       } else {
         result = await supabase.auth.signInWithPassword({ email, password });
       }
@@ -114,24 +125,7 @@ export default function AuthScreen({ onAuth }) {
               </div>
               {error && <div className="alert alert-danger py-2 small">{error}</div>}
               <button type="submit" className="btn w-100 fw-semibold" disabled={loading}
-                style={{
-                  background: mainColor,
-                  color: '#fff',
-                  border: 'none',
-                  padding: '12px 14px',
-                  borderRadius: 14,
-                  boxShadow: '0 4px 16px rgba(238,96,96,0.35)',
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(238,96,96,0.45)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 4px 16px rgba(238,96,96,0.35)';
-                }}
-              >
+                style={{background:mainColor,color:'#fff',border:'none',padding:'12px 14px',borderRadius:14,boxShadow:'0 4px 16px rgba(238,96,96,0.35)'}}>
                 {loading ? 'Please wait…' : 'Sign in'}
               </button>
             </form>
@@ -198,25 +192,7 @@ export default function AuthScreen({ onAuth }) {
               
               <div className="mt-auto">
                 <button type="submit" className="btn w-100 fw-semibold" disabled={loading}
-                  style={{
-                    background: mainColor,
-                    color: '#fff',
-                    border: 'none',
-                    padding: '12px 14px',
-                    borderRadius: 14,
-                    boxShadow: '0 4px 16px rgba(238,96,96,0.35)',
-                    marginTop: 'auto',
-                    transition: 'all 0.2s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(238,96,96,0.45)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 4px 16px rgba(238,96,96,0.35)';
-                  }}
-                >
+                  style={{background:mainColor,color:'#fff',border:'none',padding:'12px 14px',borderRadius:14,boxShadow:'0 4px 16px rgba(238,96,96,0.35)',marginTop:'auto'}}>
                   {loading ? 'Please wait…' : 'Create account'}
                 </button>
                 
