@@ -480,7 +480,7 @@ ${contextSnippets.map((t, i) => `[${i + 1}] ${t}`).join("\n\n")}
 رجّع الـ JSON فقط.`;
       let quiz = [];
       try {
-  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
         const response = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -860,23 +860,32 @@ ${contextSnippets.map((t, i) => `[${i + 1}] ${t}`).join("\n\n")}
       const truncated = fetchedPageText.length >= 50000;
       return res.json({ reply: fetchedPageText, truncated });
     }
-    
+
     // Smart web search: only search if it's a question or needs current info
     const needsWebSearch = (msg) => {
-      if (!msg || typeof msg !== 'string') return false;
+      if (!msg || typeof msg !== "string") return false;
       const text = msg.trim();
       // Too short to be a real question
       if (text.length < 10) return false;
       // Has question words or patterns
-      const hasQuestionWord = /(\?|شنوة|علاش|كيفاش|وين|وقتاش|قداش|شكون|what|when|where|why|how|who|اش هو|اش هي|شنية)/i.test(text);
+      const hasQuestionWord =
+        /(\?|شنوة|علاش|كيفاش|وين|وقتاش|قداش|شكون|what|when|where|why|how|who|اش هو|اش هي|شنية)/i.test(
+          text
+        );
       // Needs current/recent info
-      const needsCurrentInfo = /(تاو|اليوم|today|current|latest|آخر|الآن|هذا الأسبوع|this week|recent)/i.test(text);
+      const needsCurrentInfo =
+        /(تاو|اليوم|today|current|latest|آخر|الآن|هذا الأسبوع|this week|recent)/i.test(
+          text
+        );
       // Looks for external info (news, weather, events, etc)
-      const needsExternalInfo = /(أخبار|news|weather|طقس|event|حدث|price|سعر|stock|update|تحديث)/i.test(text);
-      
+      const needsExternalInfo =
+        /(أخبار|news|weather|طقس|event|حدث|price|سعر|stock|update|تحديث)/i.test(
+          text
+        );
+
       return hasQuestionWord || needsCurrentInfo || needsExternalInfo;
     };
-    
+
     // Only search if webSearch is enabled AND message needs it
     if (webSearch && message && needsWebSearch(message)) {
       try {
@@ -1247,7 +1256,7 @@ ${DARIJA_STYLE_GUIDE}
           },
         ];
 
-  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
         const response = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1379,7 +1388,7 @@ ${DARIJA_STYLE_GUIDE}
             parts: [{ text: "رجّع النص الأكاديمي المفصل بنسق Markdown فقط." }],
           },
         ];
-  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
         const response = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1780,7 +1789,7 @@ ${DARIJA_STYLE_GUIDE}
             parts: [{ text: "رجّع النص الأكاديمي المفصل بنسق Markdown فقط." }],
           },
         ];
-  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
         const response = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1937,7 +1946,7 @@ ${DARIJA_STYLE_GUIDE}
             parts: [{ text: "رجّع النص الأكاديمي المفصل بنسق Markdown فقط." }],
           },
         ];
-  const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
         const response = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -2019,4 +2028,3 @@ ${DARIJA_STYLE_GUIDE}
 });
 
 app.listen(3001, () => console.log("Server running on port 3001"));
-

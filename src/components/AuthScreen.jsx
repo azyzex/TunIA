@@ -71,7 +71,7 @@ export default function AuthScreen({ onAuth }) {
 
   return (
     <div className="d-flex align-items-center justify-content-center min-vh-100" style={{background:'linear-gradient(180deg,#343541 0%,#202123 100%)'}}>
-      <div style={{maxWidth:480,width:'100%',perspective:'1000px'}}>
+      <div style={{maxWidth:480,width:'100%',perspective:'1000px',display:'flex',alignItems:'center',justifyContent:'center',minHeight:'700px'}}>
         <motion.div 
           className="auth-card shadow-lg" 
           style={{
@@ -81,7 +81,7 @@ export default function AuthScreen({ onAuth }) {
           }}
           initial={{ 
             rotateY: 0, 
-            height: 520 
+            height: 520
           }}
           animate={{ 
             rotateY: mode === 'signup' ? 180 : 0,
@@ -99,16 +99,19 @@ export default function AuthScreen({ onAuth }) {
           {/* Front face - Sign In */}
           <div className="p-4 p-md-5" style={{ 
             position: 'absolute', 
-            top: 0, 
+            top: 0,
             left: 0, 
-            right: 0, 
+            right: 0,
             bottom: 0,
             backfaceVisibility: 'hidden',
             transform: 'rotateY(0deg)',
             background:'rgba(255,255,255,0.08)',
             backdropFilter:'blur(12px)',
             border:'1px solid rgba(255,255,255,0.15)',
-            borderRadius:24
+            borderRadius:24,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center'
           }}>
             <h2 className="mb-3 fw-bold" style={{color:'#fff',fontSize:'1.9rem'}}>TUNIA</h2>
             <p className="text-secondary mb-4" style={{fontSize:'0.95rem'}}>Sign in to start chatting in Tunisian Darija.</p>
@@ -150,12 +153,12 @@ export default function AuthScreen({ onAuth }) {
           {/* Back face - Sign Up */}
           <div className="p-4 p-md-5" style={{ 
             position: 'absolute', 
-            top: 0, 
+            top: 0,
             left: 0, 
-            right: 0, 
+            right: 0,
             bottom: 0,
-            backfaceVisibility: 'hidden',
             transform: 'rotateY(180deg)',
+            backfaceVisibility: 'hidden',
             background:'rgba(255,255,255,0.08)',
             backdropFilter:'blur(12px)',
             border:'1px solid rgba(255,255,255,0.15)',
