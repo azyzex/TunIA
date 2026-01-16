@@ -41,6 +41,52 @@ export async function createConversation(userId, title = null) {
   return data;
 }
 
+export async function fetchConversations(userId, { includeArchived = false } = {}) {
+  let query = supabase
+    .from("conversations")
+    .select("*")
+    .eq("user_id", userId);
+
+  if (!includeArchived) query = query.eq("archived", false);
+
+  const { data, error } = await query.order("updated_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function renameConversation(conversationId, title) {
+  const { data, error } = await supabase
+    .from("conversations")
+    .update({ title })
+    .eq("id", conversationId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function touchConversation(conversationId) {
+  const { data, error } = await supabase
+    .from("conversations")
+    .update({ updated_at: new Date().toISOString() })
+    .eq("id", conversationId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function setConversationArchived(conversationId, archived = true) {
+  const { data, error } = await supabase
+    .from("conversations")
+    .update({ archived })
+    .eq("id", conversationId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 export async function addUserMessage(conversationId, userId, text) {
   const { data, error } = await supabase
     .from("messages")

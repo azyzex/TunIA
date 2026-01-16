@@ -181,6 +181,8 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
           WebkitBackdropFilter: 'blur(10px)',
           zIndex: 1025, // Higher than content but lower than text zone
           pointerEvents: 'none',
+          left: 'var(--sidebar-width, 0px)',
+          width: 'calc(100% - var(--sidebar-width, 0px))'
         }}
       ></div>
 
@@ -193,14 +195,13 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
         layout // This enables automatic animation when props change
         className={isCentered ? "position-absolute" : "fixed-bottom mb-4"}
         style={{ 
-          zIndex: 1030, // Text zone on top
-          width: '100%',
-          maxWidth: '733px',
-          left: '50%',
-          right: '50%',
-          marginLeft: '-366.5px', /* Half of maxWidth for perfect centering */
+          zIndex: 1030,
+          width: 'calc(100% - var(--sidebar-width, 0px))',
+          left: 'var(--sidebar-width, 0px)',
+          padding: '0 16px',
           top: isCentered ? '35%' : 'auto',
-          transform: isCentered ? 'translateY(-50%)' : 'none'
+          transform: isCentered ? 'translateY(-50%) scale(1)' : 'scale(1)',
+          transformOrigin: 'center center'
         }}
       >
       {/* Welcome message - only shown when centered */}
@@ -309,7 +310,7 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
                      border: '1px solid #cec5bf', /* Darker border color */
                      overflow: 'hidden',
                      width: '100%',
-                     maxWidth: '1200px',
+                     maxWidth: '733px',
                      margin: '0 auto',
                      backgroundColor: '#fff5ed' /* Light background from our palette */
                    }}>

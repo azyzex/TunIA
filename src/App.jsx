@@ -7,7 +7,7 @@ import ChatInput from './components/ChatInput'
 import WelcomeScreen from './components/WelcomeScreen'
 import './App.css'
 import AuthScreen from './components/AuthScreen'
-import { supabase, ensureProfile, createConversation, addUserMessage, addAIMessage, fetchConversationMessages } from '../supabaseClient'
+import { supabase, ensureProfile, createConversation, addUserMessage, addAIMessage, fetchConversationMessages, fetchConversations, renameConversation, touchConversation, setConversationArchived } from '../supabaseClient'
 // PDF.js: bundle worker locally to avoid network fetch issues
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
@@ -16,6 +16,8 @@ GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 function App() {
   const [user, setUser] = useState(null);
   const [conversationId, setConversationId] = useState(null);
+  const [conversations, setConversations] = useState([]);
+  const [loadingConversations, setLoadingConversations] = useState(false);
   // Remove showWelcome state since we're skipping the welcome screen
   const [messages, setMessages] = useState([])
   const [isLoading, setIsLoading] = useState(false)
@@ -34,6 +36,109 @@ function App() {
 
   useEffect(() => { scrollToBottom() }, [messages])
 
+  const mapDbMessageToUi = (msg) => {
+    const meta = msg?.meta || {}
+    return {
+      id: msg.id,
+      sender: msg.role === 'user' ? 'user' : 'ai',
+      text: msg.text || '',
+      timestamp: msg.created_at ? new Date(msg.created_at) : new Date(),
+      isQuiz: Boolean(msg.is_quiz),
+      isQuizConfirm: Boolean(msg.is_quiz_confirm),
+      isPdfExport: Boolean(meta.isPdfExport),
+      pdfContent: meta.pdfContent || null
+    }
+  }
+
+  const upsertConversation = (conv) => {
+    if (!conv) return
+    setConversations(prev => {
+      const exists = prev.some(c => c.id === conv.id)
+      const next = exists
+        ? prev.map(c => (c.id === conv.id ? { ...c, ...conv } : c))
+        : [conv, ...prev]
+      return next.sort((a, b) => {
+        const aDate = new Date(a.updated_at || a.created_at || 0).getTime()
+        const bDate = new Date(b.updated_at || b.created_at || 0).getTime()
+        return bDate - aDate
+      })
+    })
+  }
+
+  const selectConversation = async (convId) => {
+    if (!convId) {
+      setConversationId(null)
+      setMessages([])
+      return
+    }
+    setConversationId(convId)
+    try {
+      const data = await fetchConversationMessages(convId)
+      setMessages((data || []).map(mapDbMessageToUi))
+    } catch (e) {
+      console.error('fetchConversationMessages', e)
+      setMessages([])
+    }
+  }
+
+  const loadConversations = async (autoSelect = true) => {
+    if (!user) return
+    setLoadingConversations(true)
+    try {
+      const data = await fetchConversations(user.id)
+      setConversations(data)
+      if (autoSelect && !conversationId) {
+        if (data?.length) {
+          await selectConversation(data[0].id)
+        } else {
+          setConversationId(null)
+          setMessages([])
+        }
+      }
+    } catch (e) {
+      console.error('fetchConversations', e)
+    } finally {
+      setLoadingConversations(false)
+    }
+  }
+
+  const handleNewChat = () => {
+    setConversationId(null)
+    setMessages([])
+  }
+
+  const handleArchiveConversation = async (convId) => {
+    try {
+      await setConversationArchived(convId, true)
+      setConversations(prev => {
+        const remaining = prev.filter(c => c.id !== convId)
+        if (convId === conversationId) {
+          if (remaining.length) {
+            selectConversation(remaining[0].id)
+          } else {
+            setConversationId(null)
+            setMessages([])
+          }
+        }
+        return remaining
+      })
+    } catch (e) {
+      console.error('archive conversation', e)
+    }
+  }
+
+  const maybeUpdateConversationTitle = async (convId, text) => {
+    const existing = conversations.find(c => c.id === convId)
+    if (!existing?.title && text?.trim()) {
+      try {
+        const updated = await renameConversation(convId, text.slice(0, 60))
+        upsertConversation(updated)
+      } catch (e) {
+        console.warn('renameConversation failed', e)
+      }
+    }
+  }
+
   // Auth session listener
   useEffect(()=>{
     let mounted = true;
@@ -42,10 +147,16 @@ function App() {
       if (mounted && session?.user){ setUser(session.user); await ensureProfile(session.user);}    
     })();
     const { data: sub } = supabase.auth.onAuthStateChange((_evt, session)=>{
-      if (session?.user){ setUser(session.user); ensureProfile(session.user);} else { setUser(null); setConversationId(null); setMessages([]);}  
+      if (session?.user){ setUser(session.user); ensureProfile(session.user);} else { setUser(null); setConversationId(null); setMessages([]); setConversations([]);}  
     });
     return ()=>{ mounted=false; sub.subscription.unsubscribe(); };
   },[]);
+
+  useEffect(() => {
+    if (user) {
+      loadConversations(true)
+    }
+  }, [user])
 
   // Event listener for quiz regeneration with custom parameters
   useEffect(() => {
@@ -178,16 +289,8 @@ function App() {
   const startChat = (initialMessage = null) => {
     // Removed setShowWelcome call since we're skipping welcome screen
     
-    // Add welcome message from AI
-    const welcomeMessage = {
-      id: 1,
-      text: "أهلاً بيك! شنوة تحبني نعاونك فيه؟",
-      sender: 'ai',
-      timestamp: new Date(),
-      isWelcomeMessage: true // Flag to identify the welcome message
-    }
-    
-    setMessages([welcomeMessage])
+    // Start with empty messages
+    setMessages([])
     
     // If there's an initial message, send it
     if (initialMessage) {
@@ -204,9 +307,9 @@ function App() {
     // Ensure conversation
     let convId = conversationId;
     if (!convId){
-      try { const conv = await createConversation(user.id, text.slice(0,60)); convId = conv.id; setConversationId(conv.id);} catch(e){ console.error('createConversation', e);} }
+      try { const conv = await createConversation(user.id, text?.trim() ? text.slice(0,60) : 'محادثة جديدة'); convId = conv.id; setConversationId(conv.id); upsertConversation(conv);} catch(e){ console.error('createConversation', e);} }
 
-    const newMessage = { id: messages.length + 1, text, sender:'user', timestamp:new Date(), file, imagePreview: image?.previewUrl || null };
+    const newMessage = { id: Date.now(), text, sender:'user', timestamp:new Date(), file, imagePreview: image?.previewUrl || null };
 
   // Prepare history: last 30 messages before this one, excluding file
     const history = [...messages].slice(-30).map(msg => ({
@@ -217,6 +320,7 @@ function App() {
   setMessages(prev => [...prev, newMessage]);
   // Persist user message
   try { if (convId) await addUserMessage(convId, user.id, text); } catch(e){ console.warn('persist user message failed', e); }
+  try { if (convId) { await maybeUpdateConversationTitle(convId, text); const touched = await touchConversation(convId); upsertConversation(touched); } } catch(e){ console.warn('touch conversation failed', e); }
     // If quiz mode is on, show a confirmation message instead of calling the server
     if (sendQuizMode) {
       const confirmMsg = {
@@ -275,7 +379,7 @@ function App() {
       let aiResponse;
       if (data.isQuiz && Array.isArray(data.quiz)) {
         aiResponse = {
-          id: messages.length + 2,
+          id: Date.now() + 1,
           text: 'اختبار قصير على الموضوع إلي طلبت عليه:',
           sender: 'ai',
           timestamp: new Date(),
@@ -284,7 +388,7 @@ function App() {
         };
       } else {
         aiResponse = {
-          id: messages.length + 2,
+          id: Date.now() + 1,
           text: data.reply || 'صارّت مشكلة مؤقتة في الخدمة، جرّب بعد شوية.',
           sender: 'ai',
           timestamp: new Date(),
@@ -295,11 +399,12 @@ function App() {
   setMessages(prev => [...prev, aiResponse]);
   // Persist AI message
   try { if (convId) await addAIMessage(convId, aiResponse.text, { isPdfExport: aiResponse.isPdfExport }); } catch(e){ console.warn('persist ai message failed', e); }
+  try { if (convId) { const touched = await touchConversation(convId); upsertConversation(touched); } } catch(e){ console.warn('touch conversation failed', e); }
     } catch (err) {
       console.error('Fetch/chat error:', err);
       const friendly = 'صارت مشكلة تقنية مؤقتة في الخدمة. جرّب بعد شوية ولا تأكّد إلي الخادم شغّال.';
       setMessages(prev => [...prev, {
-        id: messages.length + 2,
+        id: Date.now() + 1,
         text: friendly,
         sender: 'ai',
         timestamp: new Date()
@@ -499,18 +604,60 @@ async function readPDFFile(file) {
   }
 
   if (!user){
-    return <AuthScreen onAuth={(u)=>{ setUser(u); startChat(); }} />
+    return <AuthScreen onAuth={(u)=>{ setUser(u); }} />
   }
 
   return (
-    <div className="min-vh-100" style={{ 
+    <div className="app-shell" style={{ 
       backgroundColor: '#202123', 
       background: 'linear-gradient(180deg, #343541 0%, #202123 100%)',
-      color: '#f8f9fa' 
+      color: '#f8f9fa',
+      '--sidebar-width': '280px'
     }}>
-      <div className='position-fixed top-0 end-0 p-3 d-flex gap-2' style={{zIndex:50}}>
-        <button className='btn btn-sm btn-outline-light' onClick={async()=>{ await supabase.auth.signOut(); }}>Sign out</button>
-      </div>
+      <aside className="sidebar">
+        <div className="sidebar-header">
+          <div className="d-flex align-items-center justify-content-between">
+            <h6 className="mb-0">المحادثات</h6>
+            <button className="btn btn-sm btn-outline-light" onClick={handleNewChat}>محادثة جديدة</button>
+          </div>
+        </div>
+        <div className="sidebar-body">
+          {loadingConversations && (
+            <div className="text-muted small">جاري التحميل…</div>
+          )}
+          {!loadingConversations && conversations.length === 0 && (
+            <div className="text-muted small">ما فما حتى محادثة. جرّب تبدا محادثة جديدة.</div>
+          )}
+          <div className="conversation-list">
+            {conversations.map(conv => (
+              <div key={conv.id} className={`conversation-item ${conv.id === conversationId ? 'active' : ''}`}>
+                <button
+                  className="conversation-title"
+                  onClick={() => selectConversation(conv.id)}
+                >
+                  {conv.title || 'محادثة جديدة'}
+                </button>
+                <div className="conversation-meta">
+                  <span className="small text-muted">
+                    {new Date(conv.updated_at || conv.created_at).toLocaleDateString('ar-TN')}
+                  </span>
+                  <button
+                    className="btn btn-sm btn-outline-light"
+                    onClick={() => handleArchiveConversation(conv.id)}
+                  >
+                    أرشف
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </aside>
+
+      <main className="main-panel">
+        <div className='position-fixed top-0 end-0 p-3 d-flex gap-2' style={{zIndex:50}}>
+          <button className='btn btn-sm btn-outline-light' onClick={async()=>{ await supabase.auth.signOut(); }}>Sign out</button>
+        </div>
       {/* Removed ChatHeader - clean minimalist design like ChatGPT */}
       {/* Edit Modal */}
       {editModal.open && (
@@ -567,6 +714,7 @@ async function readPDFFile(file) {
   quizMode={quizMode}
   setQuizMode={setQuizMode}
       />
+      </main>
     </div>
   )
 }

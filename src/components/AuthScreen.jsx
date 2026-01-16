@@ -10,6 +10,7 @@ export default function AuthScreen({ onAuth }) {
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [info, setInfo] = useState(null);
   const [isGrowing, setIsGrowing] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
 
@@ -25,15 +26,9 @@ export default function AuthScreen({ onAuth }) {
   const submit = async (e) => {
     e.preventDefault();
     setError(null);
+    setInfo(null);
     setLoading(true);
     try {
-      // DEV BYPASS: Static login for testing
-      if (email === 'admin1' && password === 'admin1') {
-        const fakeUser = { id: 'dev-user-123', email: 'admin1@test.dev' };
-        onAuth(fakeUser);
-        return;
-      }
-
       if (mode === 'signup') {
         if (!username.trim()) throw new Error('Username required');
         if (username.length < 3) throw new Error('Username too short');
@@ -52,18 +47,34 @@ export default function AuthScreen({ onAuth }) {
       }
       if (result.error) throw result.error;
       const user = result.data.user;
+      if (mode === 'signup') {
+        setInfo('Check your email to confirm your account, then sign in.');
+        return;
+      }
       if (user) {
         await ensureProfile(user);
-        if (mode === 'signup' && username) {
-          // Update profile display name with chosen username
-            await supabase.from('profiles').update({ display_name: username }).eq('user_id', user.id);
-        }
         onAuth(user);
       } else {
         setError('Check your email to confirm.');
       }
     } catch (err) {
       setError(err.message || 'Auth error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resendVerification = async () => {
+    if (!email) return;
+    setLoading(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const { error } = await supabase.auth.resend({ type: 'signup', email });
+      if (error) throw error;
+      setInfo('Verification email sent again.');
+    } catch (err) {
+      setError(err.message || 'Failed to resend email');
     } finally {
       setLoading(false);
     }
@@ -127,9 +138,14 @@ export default function AuthScreen({ onAuth }) {
                   value={password} onChange={e=>setPassword(e.target.value)} />
               </div>
               {error && <div className="alert alert-danger py-2 small">{error}</div>}
+              {info && <div className="alert alert-info py-2 small">{info}</div>}
               <button type="submit" className="btn w-100 fw-semibold" disabled={loading}
                 style={{background:mainColor,color:'#fff',border:'none',padding:'12px 14px',borderRadius:14,boxShadow:'0 4px 16px rgba(238,96,96,0.35)'}}>
                 {loading ? 'Please wait…' : 'Sign in'}
+              </button>
+              <button type="button" className="btn btn-link w-100 mt-2" disabled={loading || !email}
+                onClick={resendVerification} style={{color:'#fff'}}>
+                Resend verification email
               </button>
             </form>
             <div className="mt-4 d-flex justify-content-between align-items-center">
@@ -191,6 +207,7 @@ export default function AuthScreen({ onAuth }) {
                     value={confirmPassword} onChange={e=>setConfirmPassword(e.target.value)} />
                 </div>
                 {error && <div className="alert alert-danger py-2 small">{error}</div>}
+                {info && <div className="alert alert-info py-2 small">{info}</div>}
               </div>
               
               <div className="mt-auto">
