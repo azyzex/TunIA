@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import 'bootstrap/dist/css/bootstrap.min.css'
+import { MessageSquarePlus, MoreHorizontal, Pencil, Trash2, LogOut, PanelLeftClose, PanelLeft } from 'lucide-react'
 import ChatHeader from './components/ChatHeader'
 import ChatMessage from './components/ChatMessage'
 import ChatInput from './components/ChatInput'
@@ -29,6 +30,9 @@ function App() {
   const [quizMode, setQuizMode] = useState(false)
   const [quizConfirmingId, setQuizConfirmingId] = useState(null)
   const [quizGenerating, setQuizGenerating] = useState(false)
+  const [conversationMenuId, setConversationMenuId] = useState(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null)
+  const [renameModal, setRenameModal] = useState({ open: false, conv: null, value: '' })
   const messagesEndRef = useRef(null)
 
   const scrollToBottom = () => {
@@ -106,6 +110,40 @@ function App() {
   const handleNewChat = () => {
     setConversationId(null)
     setMessages([])
+    setConversationMenuId(null)
+  }
+
+  const handleDeleteConversation = async (convId) => {
+    try {
+      const { error } = await supabase.from('conversations').delete().eq('id', convId)
+      if (error) throw error
+      setConversations(prev => {
+        const remaining = prev.filter(c => c.id !== convId)
+        if (convId === conversationId) {
+          setConversationId(null)
+          setMessages([])
+        }
+        return remaining
+      })
+    } catch (e) {
+      console.error('delete conversation', e)
+    } finally {
+      setDeleteConfirmId(null)
+      setConversationMenuId(null)
+    }
+  }
+
+  const handleRenameConversation = async () => {
+    if (!renameModal.conv || !renameModal.value.trim()) return
+    try {
+      const updated = await renameConversation(renameModal.conv.id, renameModal.value.trim())
+      upsertConversation(updated)
+    } catch (e) {
+      console.error('rename conversation', e)
+    } finally {
+      setRenameModal({ open: false, conv: null, value: '' })
+      setConversationMenuId(null)
+    }
   }
 
   const handleArchiveConversation = async (convId) => {
@@ -614,57 +652,101 @@ async function readPDFFile(file) {
       backgroundColor: '#202123', 
       background: 'linear-gradient(180deg, #343541 0%, #202123 100%)',
       color: '#f8f9fa',
-      '--sidebar-width': sidebarOpen ? '280px' : '0px'
+      '--sidebar-width': sidebarOpen ? '260px' : '0px'
     }}>
       <aside className="sidebar">
         <div className="sidebar-header">
-          <div className="d-flex align-items-center justify-content-between">
-            <h6 className="mb-0">المحادثات</h6>
-            <button className="btn btn-sm btn-outline-light" onClick={handleNewChat}>محادثة جديدة</button>
-          </div>
+          <button className="new-chat-btn" onClick={handleNewChat}>
+            <MessageSquarePlus size={18} />
+            <span>محادثة جديدة</span>
+          </button>
         </div>
         <div className="sidebar-body">
           {loadingConversations && (
-            <div className="text-muted small">جاري التحميل…</div>
+            <div className="text-muted small p-2">جاري التحميل…</div>
           )}
           {!loadingConversations && conversations.length === 0 && (
-            <div className="text-muted small">ما فما حتى محادثة. جرّب تبدا محادثة جديدة.</div>
+            <div className="text-muted small p-2">ما فما حتى محادثة</div>
           )}
           <div className="conversation-list">
             {conversations.map(conv => (
-              <div key={conv.id} className={`conversation-item ${conv.id === conversationId ? 'active' : ''}`}>
-                <button
-                  className="conversation-title"
-                  onClick={() => selectConversation(conv.id)}
-                >
+              <div 
+                key={conv.id} 
+                className={`conversation-item ${conv.id === conversationId ? 'active' : ''}`}
+                onClick={() => { selectConversation(conv.id); setConversationMenuId(null); }}
+              >
+                <span className="conversation-title-text">
                   {conv.title || 'محادثة جديدة'}
+                </span>
+                <button
+                  className="conversation-menu-btn"
+                  onClick={(e) => { e.stopPropagation(); setConversationMenuId(conversationMenuId === conv.id ? null : conv.id); }}
+                >
+                  <MoreHorizontal size={16} />
                 </button>
-                <div className="conversation-meta">
-                  <span className="small text-muted">
-                    {new Date(conv.updated_at || conv.created_at).toLocaleDateString('ar-TN')}
-                  </span>
-                  <button
-                    className="btn btn-sm btn-outline-light"
-                    onClick={() => handleArchiveConversation(conv.id)}
-                  >
-                    أرشف
-                  </button>
-                </div>
+                {conversationMenuId === conv.id && (
+                  <div className="conversation-dropdown" onClick={(e) => e.stopPropagation()}>
+                    <button onClick={() => { setRenameModal({ open: true, conv, value: conv.title || '' }); setConversationMenuId(null); }}>
+                      <Pencil size={14} />
+                      <span>تعديل الاسم</span>
+                    </button>
+                    <button className="danger" onClick={() => { setDeleteConfirmId(conv.id); setConversationMenuId(null); }}>
+                      <Trash2 size={14} />
+                      <span>حذف</span>
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </div>
         <div className="sidebar-footer">
-          <button className='btn btn-sm btn-outline-light w-100' onClick={async()=>{ await supabase.auth.signOut(); }}>Sign out</button>
+          <button className="signout-btn" onClick={async()=>{ await supabase.auth.signOut(); }}>
+            <LogOut size={16} />
+            <span>تسجيل الخروج</span>
+          </button>
         </div>
       </aside>
 
-      <main className="main-panel">
-        <div className='position-fixed top-0 end-0 p-3 d-flex gap-2' style={{zIndex:50}}>
-          <button className='btn btn-sm btn-outline-light' onClick={()=> setSidebarOpen(prev => !prev)}>
-            {sidebarOpen ? 'إخفاء القائمة' : 'إظهار القائمة'}
-          </button>
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmId && (
+        <div className="modal-overlay" onClick={() => setDeleteConfirmId(null)}>
+          <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <h6>هل أنت متأكد؟</h6>
+            <p>باش تتحذف المحادثة هاذي نهائياً.</p>
+            <div className="confirm-actions">
+              <button className="btn-cancel" onClick={() => setDeleteConfirmId(null)}>إلغاء</button>
+              <button className="btn-danger" onClick={() => handleDeleteConversation(deleteConfirmId)}>حذف</button>
+            </div>
+          </div>
         </div>
+      )}
+
+      {/* Rename Modal */}
+      {renameModal.open && (
+        <div className="modal-overlay" onClick={() => setRenameModal({ open: false, conv: null, value: '' })}>
+          <div className="confirm-modal" onClick={(e) => e.stopPropagation()}>
+            <h6>تعديل اسم المحادثة</h6>
+            <input
+              type="text"
+              className="rename-input"
+              value={renameModal.value}
+              onChange={(e) => setRenameModal(prev => ({ ...prev, value: e.target.value }))}
+              placeholder="اسم المحادثة"
+              autoFocus
+            />
+            <div className="confirm-actions">
+              <button className="btn-cancel" onClick={() => setRenameModal({ open: false, conv: null, value: '' })}>إلغاء</button>
+              <button className="btn-primary" onClick={handleRenameConversation}>حفظ</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <main className="main-panel">
+        <button className="sidebar-toggle" onClick={()=> setSidebarOpen(prev => !prev)}>
+          {sidebarOpen ? <PanelLeftClose size={20} /> : <PanelLeft size={20} />}
+        </button>
       {/* Removed ChatHeader - clean minimalist design like ChatGPT */}
       {/* Edit Modal */}
       {editModal.open && (
