@@ -18,6 +18,7 @@ function App() {
   const [conversationId, setConversationId] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [loadingConversations, setLoadingConversations] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   // Remove showWelcome state since we're skipping the welcome screen
   const [messages, setMessages] = useState([])
   const [isLoading, setIsLoading] = useState(false)
@@ -154,7 +155,8 @@ function App() {
 
   useEffect(() => {
     if (user) {
-      loadConversations(true)
+      loadConversations(false)
+      handleNewChat()
     }
   }, [user])
 
@@ -608,11 +610,11 @@ async function readPDFFile(file) {
   }
 
   return (
-    <div className="app-shell" style={{ 
+    <div className={`app-shell ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`} style={{ 
       backgroundColor: '#202123', 
       background: 'linear-gradient(180deg, #343541 0%, #202123 100%)',
       color: '#f8f9fa',
-      '--sidebar-width': '280px'
+      '--sidebar-width': sidebarOpen ? '280px' : '0px'
     }}>
       <aside className="sidebar">
         <div className="sidebar-header">
@@ -652,11 +654,16 @@ async function readPDFFile(file) {
             ))}
           </div>
         </div>
+        <div className="sidebar-footer">
+          <button className='btn btn-sm btn-outline-light w-100' onClick={async()=>{ await supabase.auth.signOut(); }}>Sign out</button>
+        </div>
       </aside>
 
       <main className="main-panel">
         <div className='position-fixed top-0 end-0 p-3 d-flex gap-2' style={{zIndex:50}}>
-          <button className='btn btn-sm btn-outline-light' onClick={async()=>{ await supabase.auth.signOut(); }}>Sign out</button>
+          <button className='btn btn-sm btn-outline-light' onClick={()=> setSidebarOpen(prev => !prev)}>
+            {sidebarOpen ? 'إخفاء القائمة' : 'إظهار القائمة'}
+          </button>
         </div>
       {/* Removed ChatHeader - clean minimalist design like ChatGPT */}
       {/* Edit Modal */}
@@ -713,6 +720,7 @@ async function readPDFFile(file) {
   disabled={isLoading || generatingPreview || Boolean(quizConfirmingId) || quizGenerating}
   quizMode={quizMode}
   setQuizMode={setQuizMode}
+  hasMessages={messages.length > 0}
       />
       </main>
     </div>

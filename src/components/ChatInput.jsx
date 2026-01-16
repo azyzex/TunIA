@@ -2,32 +2,17 @@ import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Send, Plus, FileText, X, Search, Image as ImageIcon, ListChecks } from 'lucide-react'
 
-const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizMode = () => {} }) => {
+const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizMode = () => {}, hasMessages = false }) => {
   const [inputText, setInputText] = useState('')
   const [selectedFile, setSelectedFile] = useState(null)
   const [toolMenuOpen, setToolMenuOpen] = useState(false)
   const [combinedToolEnabled, setCombinedToolEnabled] = useState(false)
   const [selectedImage, setSelectedImage] = useState(null) // { file, previewUrl, mimeType, base64 }
-  const [isCentered, setIsCentered] = useState(true) // For ChatGPT-like centered input when empty
   const fileInputRef = useRef(null)
   const imageInputRef = useRef(null)
   
-  // Move input to bottom if messages exist
-  useEffect(() => {
-    const checkForMessages = () => {
-      const messageElements = document.querySelectorAll('.message-bubble');
-      if (messageElements.length > 0) {
-        setIsCentered(false);
-      }
-    };
-    
-    // Check once on mount
-    checkForMessages();
-    
-    // Also set up a small delay to catch any messages that might render after this component
-    const timer = setTimeout(checkForMessages, 100);
-    return () => clearTimeout(timer);
-  }, [])
+  // Determine if input should be centered based on messages prop
+  const isCentered = !hasMessages
 
   const handleSend = () => {
     // Allow sending in quiz mode if there's a PDF file (even without text)
@@ -39,55 +24,26 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
     // Close tool menu when sending
     setToolMenuOpen(false);
     
-    // If input is centered, animate the transition to bottom first
-    if (isCentered) {
-      setIsCentered(false);
-      
-      // Small delay to let the animation finish before adding the message
-      setTimeout(() => {
-        onSendMessage({
-          text: inputText,
-          file: selectedFile,
-          image: selectedImage ? { data: selectedImage.base64, mimeType: selectedImage.mimeType, previewUrl: selectedImage.previewUrl } : null,
-          webSearch: combinedToolEnabled,
-          fetchUrl: combinedToolEnabled,
-          quizMode
-        });
-        
-        setInputText('');
-        setSelectedFile(null);
-        setSelectedImage(null);
-        
-        // Reset file inputs
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
-        if (imageInputRef.current) {
-          imageInputRef.current.value = '';
-        }
-      }, 400); // Match this delay with the animation duration
-    } else {
-      // If already at bottom, send immediately
-      onSendMessage({
-        text: inputText,
-        file: selectedFile,
-        image: selectedImage ? { data: selectedImage.base64, mimeType: selectedImage.mimeType, previewUrl: selectedImage.previewUrl } : null,
-        webSearch: combinedToolEnabled,
-        fetchUrl: combinedToolEnabled,
-        quizMode
-      });
-      
-      setInputText('');
-      setSelectedFile(null);
-      setSelectedImage(null);
-      
-      // Reset file inputs
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-      if (imageInputRef.current) {
-        imageInputRef.current.value = '';
-      }
+    // Send message immediately
+    onSendMessage({
+      text: inputText,
+      file: selectedFile,
+      image: selectedImage ? { data: selectedImage.base64, mimeType: selectedImage.mimeType, previewUrl: selectedImage.previewUrl } : null,
+      webSearch: combinedToolEnabled,
+      fetchUrl: combinedToolEnabled,
+      quizMode
+    });
+    
+    setInputText('');
+    setSelectedFile(null);
+    setSelectedImage(null);
+    
+    // Reset file inputs
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+    if (imageInputRef.current) {
+      imageInputRef.current.value = '';
     }
     
     // Keep combinedToolEnabled and quizMode persistent

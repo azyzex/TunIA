@@ -34,6 +34,7 @@
   border-right: 1px solid rgba(255, 255, 255, 0.08);
   overflow-y: auto;
   z-index: 20;
+  transition: transform 0.25s ease, width 0.25s ease;
 }
 
 .sidebar-header {
@@ -44,6 +45,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-height: calc(100vh - 160px);
 }
 
 .conversation-list {
@@ -90,6 +92,16 @@
 .main-panel {
   margin-left: var(--sidebar-width, 280px);
   min-height: 100vh;
+  transition: margin-left 0.25s ease;
+}
+
+.sidebar-footer {
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.app-shell.sidebar-closed .sidebar {
+  transform: translateX(-100%);
 }
 
 /* Animation for typing indicator */
