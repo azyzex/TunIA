@@ -264,14 +264,14 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
                    style={{ 
                      boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)', 
                      border: '1px solid #cec5bf', /* Darker border color */
-                     overflow: 'hidden',
+                     overflow: 'visible',
                      width: '100%',
                      maxWidth: '733px',
                      margin: '0 auto',
                      backgroundColor: '#fff5ed' /* Light background from our palette */
                    }}>
                 {/* Only Plus button on left */}
-                <div className="d-flex align-items-center" style={{ padding: '8px 0 8px 16px' }}>
+                <div className="d-flex align-items-center" style={{ padding: '8px 0 8px 16px', position: 'relative' }}>
                   <button
                     type="button"
                     className={`btn btn-sm rounded-circle ${toolMenuOpen ? 'bg-light' : ''}`}
@@ -281,6 +281,69 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
                   >
                     <Plus size={18} />
                   </button>
+
+                  {/* Dropdown menu with animation */}
+                  <AnimatePresence>
+                    {toolMenuOpen && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: 10 }}
+                        transition={{ duration: 0.2 }}
+                        className="position-absolute rounded shadow-sm p-2" 
+                        style={{ 
+                          zIndex: 1030,
+                          width: '200px',
+                          left: 0,
+                          bottom: 'calc(100% + 10px)',
+                          backgroundColor: '#fff5ed',
+                          border: '1px solid #cec5bf'
+                        }}
+                      >
+                        <button 
+                          className="dropdown-item d-flex align-items-center py-2" 
+                          type="button" 
+                          onClick={openFilePicker} 
+                          disabled={disabled}
+                          style={{ color: '#89837f', backgroundColor: 'transparent', border: 'none' }}
+                        >
+                          <FileText size={16} className="me-2" style={{ color: '#ee6060' }} />
+                          رفع ملف PDF
+                        </button>
+                        <button 
+                          className="dropdown-item d-flex align-items-center py-2" 
+                          type="button" 
+                          onClick={openImagePicker} 
+                          disabled={disabled}
+                          style={{ color: '#89837f', backgroundColor: 'transparent', border: 'none' }}
+                        >
+                          <ImageIcon size={16} className="me-2" style={{ color: '#ee6060' }} />
+                          رفع صورة
+                        </button>
+                        {/** Web search option removed: always enabled server-side */}
+                        <button 
+                          className="dropdown-item d-flex align-items-center justify-content-between py-2" 
+                          type="button" 
+                          onClick={() => {
+                            const next = !quizMode;
+                            if (next) {
+                              setCombinedToolEnabled(false);
+                            }
+                            setQuizMode(next);
+                            setToolMenuOpen(false);
+                          }} 
+                          disabled={disabled}
+                          style={{ color: '#89837f', backgroundColor: 'transparent', border: 'none' }}
+                        >
+                          <span className="d-flex align-items-center">
+                            <ListChecks size={16} className="me-2" style={{ color: '#ee6060' }} />
+                            إنشاء اختبار
+                          </span>
+                          {quizMode && <span className="badge rounded-pill" style={{ backgroundColor: '#ee6060' }}>مفعل</span>}
+                        </button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
                 
                 {/* Text input */}
@@ -340,69 +403,6 @@ const ChatInput = ({ onSendMessage, disabled = false, quizMode = false, setQuizM
                 </button>
               </div>
               
-              {/* Dropdown menu with animation */}
-              <AnimatePresence>
-                {toolMenuOpen && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    transition={{ duration: 0.2 }}
-                    className="position-absolute rounded shadow-sm p-2 mt-1" 
-                    style={{ 
-                      zIndex: 1030, 
-                      width: '200px', 
-                      left: '16px', 
-                      bottom: '100%', 
-                      marginBottom: '10px',
-                      backgroundColor: '#fff5ed', /* Light background from our palette */
-                      border: '1px solid #cec5bf' /* Darker border color */
-                    }}
-                  >
-                    <button 
-                      className="dropdown-item d-flex align-items-center py-2" 
-                      type="button" 
-                      onClick={openFilePicker} 
-                      disabled={disabled}
-                      style={{ color: '#89837f', backgroundColor: 'transparent', border: 'none' }}
-                    >
-                      <FileText size={16} className="me-2" style={{ color: '#ee6060' }} />
-                      رفع ملف PDF
-                    </button>
-                    <button 
-                      className="dropdown-item d-flex align-items-center py-2" 
-                      type="button" 
-                      onClick={openImagePicker} 
-                      disabled={disabled}
-                      style={{ color: '#89837f', backgroundColor: 'transparent', border: 'none' }}
-                    >
-                      <ImageIcon size={16} className="me-2" style={{ color: '#ee6060' }} />
-                      رفع صورة
-                    </button>
-                    {/** Web search option removed: always enabled server-side */}
-                    <button 
-                      className="dropdown-item d-flex align-items-center justify-content-between py-2" 
-                      type="button" 
-                      onClick={() => {
-                        const next = !quizMode;
-                        if (next) {
-                          setCombinedToolEnabled(false);
-                        }
-                        setQuizMode(next);
-                        setToolMenuOpen(false);
-                      }} 
-                      disabled={disabled}
-                      style={{ color: '#89837f', backgroundColor: 'transparent', border: 'none' }}
-                    >
-                      <span className="d-flex align-items-center">
-                        <ListChecks size={16} className="me-2" style={{ color: '#ee6060' }} />
-                        إنشاء اختبار
-                      </span>
-                      {quizMode && <span className="badge rounded-pill" style={{ backgroundColor: '#ee6060' }}>مفعل</span>}
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </div>
 
             <input
