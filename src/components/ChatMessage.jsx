@@ -5,6 +5,7 @@ import { Bot, User, FileText, RotateCcw, Pencil, Copy, Download, Loader2 } from 
 
 const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, onDownloadPdf, onConfirmPdfDownload, onConfirmQuiz, onCancelQuiz, retryCount, downloadingPdf, generatingPreview, quizGenerating = false }) => {
   const isUser = message?.sender === 'user'
+  const isReadOnlyQuiz = Boolean(message?.isQuiz && message?.isHistory)
   // Per-message toggle for including citations in PDF
   const [includeCitations, setIncludeCitations] = useState(true)
   // Export format selection
@@ -507,9 +508,9 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                         className="form-control text-center"
                         placeholder="اكتب الإجابة"
                         value={quizSelections[qi] ?? ''}
-                        disabled={quizRevealed || (message.timer && timeRemaining <= 0)}
+                        disabled={isReadOnlyQuiz || quizRevealed || (message.timer && timeRemaining <= 0)}
                         onChange={(e) => {
-                          if (quizRevealed || (message.timer && timeRemaining <= 0)) return
+                          if (isReadOnlyQuiz || quizRevealed || (message.timer && timeRemaining <= 0)) return
                           const next = [...quizSelections]
                           next[qi] = e.target.value
                           setQuizSelections(next)
@@ -573,7 +574,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                                 transition: 'all 0.2s ease'
                               }}
                               onClick={() => {
-                                if (quizRevealed || (message.timer && timeRemaining <= 0)) return
+                                if (isReadOnlyQuiz || quizRevealed || (message.timer && timeRemaining <= 0)) return
                                 const next = [...quizSelections]
                                 const cur = Array.isArray(next[qi]) ? [...next[qi]] : []
                                 const idx = cur.indexOf(oi)
@@ -632,7 +633,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                                 transition: 'all 0.2s ease'
                               }}
                               onClick={() => {
-                                if (quizRevealed || (message.timer && timeRemaining <= 0)) return
+                                if (isReadOnlyQuiz || quizRevealed || (message.timer && timeRemaining <= 0)) return
                                 const next = [...quizSelections]
                                 next[qi] = oi
                                 setQuizSelections(next)
@@ -686,31 +687,37 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
               {!quizRevealed ? (
                 // Hide submit button entirely in immediate feedback mode
                 message?.quizImmediateFeedback ? null : (
-                  <button
-                    type="button"
-                    className="btn"
-                    style={{ backgroundColor: '#ee6060', color: 'white', border: 'none' }}
-                    onClick={() => {
-                      const score = calculateScore()
-                      setQuizScore(score)
-                      setQuizRevealed(true)
-                    }}
-                    disabled={(() => {
-                      if (!Array.isArray(message.quiz)) return true
-                      // If timer is active, don't allow manual reveal unless time expired
-                      if (message.timer && timeRemaining > 0) return true
-                      for (let i=0;i<message.quiz.length;i++){
-                        const t = String(message.quiz[i].type || 'mcq').toLowerCase()
-                        const sel = quizSelections[i]
-                        if (t === 'mcma') { if (!Array.isArray(sel) || sel.length === 0) return true }
-                        else if (t === 'fitb') { if (!String(sel||'').trim()) return true }
-                        else { if (sel === null || sel === undefined) return true }
-                      }
-                      return false
-                    })()}
-                  >
-                    تصحيح الإجابات
-                  </button>
+                  isReadOnlyQuiz ? (
+                    <div className="alert alert-secondary text-center">
+                      هذا اختبار محفوظ للعرض فقط.
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn"
+                      style={{ backgroundColor: '#ee6060', color: 'white', border: 'none' }}
+                      onClick={() => {
+                        const score = calculateScore()
+                        setQuizScore(score)
+                        setQuizRevealed(true)
+                      }}
+                      disabled={(() => {
+                        if (!Array.isArray(message.quiz)) return true
+                        // If timer is active, don't allow manual reveal unless time expired
+                        if (message.timer && timeRemaining > 0) return true
+                        for (let i=0;i<message.quiz.length;i++){
+                          const t = String(message.quiz[i].type || 'mcq').toLowerCase()
+                          const sel = quizSelections[i]
+                          if (t === 'mcma') { if (!Array.isArray(sel) || sel.length === 0) return true }
+                          else if (t === 'fitb') { if (!String(sel||'').trim()) return true }
+                          else { if (sel === null || sel === undefined) return true }
+                        }
+                        return false
+                      })()}
+                    >
+                      تصحيح الإجابات
+                    </button>
+                  )
                 )
               ) : (
                 <>

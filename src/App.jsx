@@ -34,6 +34,7 @@ function App() {
   const [deleteConfirmId, setDeleteConfirmId] = useState(null)
   const [renameModal, setRenameModal] = useState({ open: false, conv: null, value: '' })
   const messagesEndRef = useRef(null)
+  const lastUserIdRef = useRef(null)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -51,7 +52,8 @@ function App() {
       isQuiz: Boolean(msg.is_quiz),
       isQuizConfirm: Boolean(msg.is_quiz_confirm),
       isPdfExport: Boolean(meta.isPdfExport),
-      pdfContent: meta.pdfContent || null
+      pdfContent: meta.pdfContent || null,
+      isHistory: true
     }
   }
 
@@ -194,7 +196,10 @@ function App() {
   useEffect(() => {
     if (user) {
       loadConversations(false)
-      handleNewChat()
+      if (lastUserIdRef.current !== user.id) {
+        handleNewChat()
+        lastUserIdRef.current = user.id
+      }
     }
   }, [user])
 
@@ -349,7 +354,7 @@ function App() {
     if (!convId){
       try { const conv = await createConversation(user.id, text?.trim() ? text.slice(0,60) : 'محادثة جديدة'); convId = conv.id; setConversationId(conv.id); upsertConversation(conv);} catch(e){ console.error('createConversation', e);} }
 
-    const newMessage = { id: Date.now(), text, sender:'user', timestamp:new Date(), file, imagePreview: image?.previewUrl || null };
+    const newMessage = { id: Date.now(), text, sender:'user', timestamp:new Date(), file, imagePreview: image?.previewUrl || null, isHistory: false };
 
   // Prepare history: last 30 messages before this one, excluding file
     const history = [...messages].slice(-30).map(msg => ({
@@ -425,6 +430,7 @@ function App() {
           timestamp: new Date(),
           isQuiz: true,
           quiz: data.quiz,
+          isHistory: false
         };
       } else {
         aiResponse = {
@@ -433,7 +439,8 @@ function App() {
           sender: 'ai',
           timestamp: new Date(),
           isPdfExport: data.isPdfExport || false,
-          pdfContent: data.pdfContent || null
+          pdfContent: data.pdfContent || null,
+          isHistory: false
         };
       }
   setMessages(prev => [...prev, aiResponse]);
