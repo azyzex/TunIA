@@ -46,6 +46,31 @@ npm run dev
 
 4. Open your browser and visit `http://localhost:5173`
 
+## Production (Cloudflare Pages)
+
+This repo supports a free backend on Cloudflare using **Pages Functions** (same as Workers) so your Gemini key stays server-side.
+
+### 1) Set environment variables in Cloudflare Pages
+
+In Cloudflare Dashboard → Pages → your project → Settings → Environment variables:
+
+- `GEMINI_API_KEY` (required)
+- `GEMINI_MODEL` (optional, default: `gemini-1.5-flash`)
+
+### 2) Frontend API base
+
+In production, the frontend calls same-origin endpoints like `/api/chat`.
+
+For local dev with the Node server, you can set:
+
+- `VITE_API_BASE_URL=http://localhost:3001`
+
+### 3) Notes / limitations
+
+- The old Node backend in `server.js` uses Puppeteer for high-quality PDF rendering.
+- Cloudflare Workers/Pages Functions can’t run Puppeteer/Chromium on the free runtime.
+- Markdown + Word (RTF) exports are supported via Pages Functions; PDF download currently returns `501`.
+
 ## Usage
 
 1. **Welcome Screen**: Start with an attractive welcome screen showcasing TUNIA's capabilities

@@ -15,6 +15,7 @@ import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 
 function App() {
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
   const [user, setUser] = useState(null);
   const [conversationId, setConversationId] = useState(null);
   const [conversations, setConversations] = useState([]);
@@ -226,7 +227,7 @@ function App() {
       for (let i = idx - 1; i >= 0; i--) {
         if (messages[i]?.sender === 'user') { prevUser = messages[i].text || ''; break }
       }
-      const res = await fetch('http://localhost:3001/api/export-pdf', {
+      const res = await fetch(`${API_BASE}/api/export-pdf`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userPrompt: prevUser, aiText: aiMessage.text })
@@ -258,7 +259,7 @@ function App() {
   const handleDownloadPdf = async (messageId) => {
     setGeneratingPreview(messageId) // Set loading state
     try {
-      const response = await fetch('http://localhost:3001/export-pdf', {
+      const response = await fetch(`${API_BASE}/export-pdf`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages })
@@ -301,7 +302,7 @@ function App() {
                      exportFormat === 'docx' ? '/download-docx' : 
                      '/download-markdown'
       
-      const response = await fetch(`http://localhost:3001${endpoint}`, {
+      const response = await fetch(`${API_BASE}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: pdfData, includeCitations })
@@ -402,7 +403,7 @@ function App() {
       const today = new Date();
       const todayStr = today.toLocaleDateString('en-CA'); // YYYY-MM-DD
       const stampedText = `${text}\n\n(Reference date: ${todayStr})`;
-      const res = await fetch('http://localhost:3001/api/chat', {
+      const res = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -494,7 +495,7 @@ async function readPDFFile(file) {
   const handleConfirmQuiz = async ({ subject, questions, answers, difficulties = ['medium'], types = ['mcq'], timer = null, hints = false, immediateFeedback = false, messageId }) => {
     setQuizGenerating(true)
     try {
-      const res = await fetch('http://localhost:3001/api/chat', {
+      const res = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -595,7 +596,7 @@ async function readPDFFile(file) {
           text: msg.text
         }));
         
-        const res = await fetch('http://localhost:3001/api/chat', {
+        const res = await fetch(`${API_BASE}/api/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
