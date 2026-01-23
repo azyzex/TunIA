@@ -49,7 +49,7 @@ function enforceTunisianLexicon(input) {
   // Heuristic: replace question-start 'من' with 'شكون' if not followed by common prepositional phrases
   text = text.replace(
     /(^|[.!؟\?\n\r\t\s])من(\s+)(?!غدوة|بعد|فضلك|فضل|هنا|هناك|تم|قبل|ورا|فوق|تحت)/g,
-    (m, pre, ws) => `${pre}شكون${ws}`
+    (m, pre, ws) => `${pre}شكون${ws}`,
   );
   apply(["كفى"], "يزّي");
   apply(["يكفيك"], "يزيك");
@@ -69,7 +69,7 @@ function enforceTunisianLexicon(input) {
     // If the next word/phrase is about money/payment, use 'خلّص', else 'دزّ'
     if (
       /فلوس|مال|مبلغ|فاتورة|حساب|ثمن|دفع|سعر|مصروف|شراء|بيع|قيمة|دين|قرض|رسوم|تسديد|بنك|بطاقة|صرف|دفع|أجرة|راتب|معاليم|مصاريف|دفع/i.test(
-        after
+        after,
       )
     ) {
       return `خلّص${ws}${after}`;
@@ -132,12 +132,12 @@ function enforceTunisianLexicon(input) {
       const lhs = part1.trim();
       const rhs = part2.trim();
       return `${pre}كل ما ${lhs}، كل ما ${rhs}`;
-    }
+    },
   );
   // Within this idiom only, prefer "نجم نجاوبك" over "نقدر نجيبك" for clarity
   text = text.replace(
     /(كل\s*ما\s*[^،\n\r]+،\s*كل\s*ما\s*)(اٍنجم\s+نجاوبك)(\s+بشكل\s+أفضل)/gi,
-    (m, prefix, _v, suffix) => `${prefix}نجم نجاوبك${suffix}`
+    (m, prefix, _v, suffix) => `${prefix}نجم نجاوبك${suffix}`,
   );
 
   return text;
@@ -259,8 +259,8 @@ app.post("/api/chat", async (req, res) => {
         quizMode: Boolean(quizMode),
       },
       null,
-      0
-    )
+      0,
+    ),
   );
 
   // Check API key early
@@ -275,14 +275,14 @@ app.post("/api/chat", async (req, res) => {
       console.log("🎯 Quiz mode detected!");
       console.log(
         "📄 PDF Text received:",
-        pdfText ? `${pdfText.substring(0, 100)}...` : "NO PDF TEXT"
+        pdfText ? `${pdfText.substring(0, 100)}...` : "NO PDF TEXT",
       );
       console.log("📝 Subject:", message);
 
       const subject = message.trim().slice(0, 400);
       const qCount = Math.max(
         2,
-        Math.min(40, parseInt(quizQuestions || 5, 10))
+        Math.min(40, parseInt(quizQuestions || 5, 10)),
       );
       const aCount = Math.max(2, Math.min(5, parseInt(quizOptions || 4, 10)));
       // Try to gather web context (force like PDF)
@@ -296,7 +296,7 @@ app.post("/api/chat", async (req, res) => {
         contextSnippets.push(`المحتوى من الملف المرفوع:\n${cleanPdfText}`);
         console.log(
           "Using PDF text for quiz generation, length:",
-          cleanPdfText.length
+          cleanPdfText.length,
         );
       } else {
         // Fallback to web search if no PDF provided
@@ -337,7 +337,7 @@ app.post("/api/chat", async (req, res) => {
                 try {
                   const urlParams = new URL(url, "https://duckduckgo.com");
                   const actualUrl = decodeURIComponent(
-                    urlParams.searchParams.get("uddg") || ""
+                    urlParams.searchParams.get("uddg") || "",
                   );
                   if (actualUrl) url = actualUrl;
                 } catch (_) {
@@ -419,7 +419,7 @@ ${
         Array.isArray(quizDifficulties) && quizDifficulties.length > 0
           ? quizDifficulties
               .map((d) =>
-                d === "easy" ? "سهل" : d === "medium" ? "متوسط" : "صعب"
+                d === "easy" ? "سهل" : d === "medium" ? "متوسط" : "صعب",
               )
               .join("، ")
           : "متوسط"
@@ -531,19 +531,19 @@ ${contextSnippets.map((t, i) => `[${i + 1}] ${t}`).join("\n\n")}
             if (!selectedTypes.includes(type)) {
               console.log(
                 `Filtering out question type "${type}" - not in selected types:`,
-                selectedTypes
+                selectedTypes,
               );
               return null;
             }
 
             const question = enforceTunisianLexicon(q.question).slice(0, 200);
             const explanation = enforceTunisianLexicon(
-              String(q.explanation || "لم يتم توفير شرح لهذا السؤال.").trim()
+              String(q.explanation || "لم يتم توفير شرح لهذا السؤال.").trim(),
             ).slice(0, 500);
             const hint = quizHints
               ? enforceTunisianLexicon(String(q.hint || "").trim()).slice(
                   0,
-                  300
+                  300,
                 )
               : null;
 
@@ -574,7 +574,7 @@ ${contextSnippets.map((t, i) => `[${i + 1}] ${t}`).join("\n\n")}
               while (opts.length < aCount) opts.push("خيار إضافي");
               let indices = Array.isArray(q.correctIndices)
                 ? q.correctIndices.filter(
-                    (i) => Number.isInteger(i) && i >= 0 && i < opts.length
+                    (i) => Number.isInteger(i) && i >= 0 && i < opts.length,
                   )
                 : [0];
               if (!indices.length) indices = [0];
@@ -590,8 +590,8 @@ ${contextSnippets.map((t, i) => `[${i + 1}] ${t}`).join("\n\n")}
                   1,
                   Math.min(
                     opts.length - 1,
-                    Math.floor(Math.random() * (opts.length - 1)) + 1
-                  )
+                    Math.floor(Math.random() * (opts.length - 1)) + 1,
+                  ),
                 );
                 indices = [];
                 while (indices.length < numCorrect) {
@@ -635,7 +635,7 @@ ${contextSnippets.map((t, i) => `[${i + 1}] ${t}`).join("\n\n")}
                 question,
                 answerText: enforceTunisianLexicon(answerText),
                 acceptableAnswers: acceptableAnswers.map(
-                  enforceTunisianLexicon
+                  enforceTunisianLexicon,
                 ),
                 explanation,
               };
@@ -668,17 +668,17 @@ ${contextSnippets.map((t, i) => `[${i + 1}] ${t}`).join("\n\n")}
             const result = {
               type: "mcq",
               question: enforceTunisianLexicon(
-                `سؤال ${questionNum}: شنوة الغرض الأساسي من استعمال "${subject}"؟`
+                `سؤال ${questionNum}: شنوة الغرض الأساسي من استعمال "${subject}"؟`,
               ),
               options: baseOptions.slice(0, aCount),
               correctIndex: 0,
               explanation: enforceTunisianLexicon(
-                "الإجابة الأولى صحيحة خاطر تمثل الغرض الأساسي من استعمال هذا الموضوع."
+                "الإجابة الأولى صحيحة خاطر تمثل الغرض الأساسي من استعمال هذا الموضوع.",
               ),
             };
             if (quizHints)
               result.hint = enforceTunisianLexicon(
-                `الجواب موجود في الخيار الأول - ابحث على كلمة تبدأ بـ "م" وتخص التعلم.`
+                `الجواب موجود في الخيار الأول - ابحث على كلمة تبدأ بـ "م" وتخص التعلم.`,
               );
             return result;
           } else if (type === "mcma") {
@@ -692,7 +692,7 @@ ${contextSnippets.map((t, i) => `[${i + 1}] ${t}`).join("\n\n")}
             // Generate random correctIndices (1-3 correct answers out of aCount)
             const numCorrect = Math.max(
               1,
-              Math.min(aCount - 1, Math.floor(Math.random() * 3) + 1)
+              Math.min(aCount - 1, Math.floor(Math.random() * 3) + 1),
             );
             const correctIndices = [];
             while (correctIndices.length < numCorrect) {
@@ -702,56 +702,56 @@ ${contextSnippets.map((t, i) => `[${i + 1}] ${t}`).join("\n\n")}
             const result = {
               type: "mcma",
               question: enforceTunisianLexicon(
-                `سؤال ${questionNum}: أشنية من هذول صحيحة حول "${subject}"؟`
+                `سؤال ${questionNum}: أشنية من هذول صحيحة حول "${subject}"؟`,
               ),
               options: baseOptions.slice(0, aCount),
               correctIndices: correctIndices.sort(),
               explanation: enforceTunisianLexicon(
                 `الخيارات الصحيحة هي: ${correctIndices
                   .map((i) => `الخيار ${i + 1}`)
-                  .join(" و")} خاطر تتناسب مع الموضوع المطلوب.`
+                  .join(" و")} خاطر تتناسب مع الموضوع المطلوب.`,
               ),
             };
             if (quizHints)
               result.hint = enforceTunisianLexicon(
-                `اختار الخيارات إلي فيها كلمات "مهمة" و "إضافية" - هذول عادة يكونوا صحاح في أي موضوع تعليمي.`
+                `اختار الخيارات إلي فيها كلمات "مهمة" و "إضافية" - هذول عادة يكونوا صحاح في أي موضوع تعليمي.`,
               );
             return result;
           } else if (type === "tf") {
             const result = {
               type: "tf",
               question: enforceTunisianLexicon(
-                `سؤال ${questionNum}: "${subject}" موضوع مهم؟`
+                `سؤال ${questionNum}: "${subject}" موضوع مهم؟`,
               ),
               options: ["صحيح", "غلط"],
               correctIndex: 0,
               explanation: enforceTunisianLexicon(
-                "صحيح خاطر أي موضوع تعليمي يكون عادة مهم للفهم والتعلم."
+                "صحيح خاطر أي موضوع تعليمي يكون عادة مهم للفهم والتعلم.",
               ),
             };
             if (quizHints)
               result.hint = enforceTunisianLexicon(
-                'فكر: ياخي التعلم مهم؟ لو كان الجواب نعم، اختار "صحيح".'
+                'فكر: ياخي التعلم مهم؟ لو كان الجواب نعم، اختار "صحيح".',
               );
             return result;
           } else if (type === "fitb") {
             const result = {
               type: "fitb",
               question: enforceTunisianLexicon(
-                `سؤال ${questionNum}: الموضوع متاعنا هو ___`
+                `سؤال ${questionNum}: الموضوع متاعنا هو ___`,
               ),
               answerText: enforceTunisianLexicon(subject.slice(0, 50)),
               acceptableAnswers: [enforceTunisianLexicon(subject.slice(0, 50))],
               explanation: enforceTunisianLexicon(
                 `الجواب الصحيح هو "${subject.slice(
                   0,
-                  50
-                )}" خاطر هذا هو الموضوع إلي قاعد نتناقش فيه.`
+                  50,
+                )}" خاطر هذا هو الموضوع إلي قاعد نتناقش فيه.`,
               ),
             };
             if (quizHints)
               result.hint = enforceTunisianLexicon(
-                `الجواب يبدأ بأول حرف من "${subject}" وله نفس عدد الحروف (${subject.length} حرف)`
+                `الجواب يبدأ بأول حرف من "${subject}" وله نفس عدد الحروف (${subject.length} حرف)`,
               );
             return result;
           } else {
@@ -759,7 +759,7 @@ ${contextSnippets.map((t, i) => `[${i + 1}] ${t}`).join("\n\n")}
             return {
               type: "mcq",
               question: enforceTunisianLexicon(
-                `سؤال ${questionNum}: شنوة الغرض من استعمال "${subject}"؟`
+                `سؤال ${questionNum}: شنوة الغرض من استعمال "${subject}"؟`,
               ),
               options: [
                 enforceTunisianLexicon(`غرض تعليمي ومهم`),
@@ -769,7 +769,7 @@ ${contextSnippets.map((t, i) => `[${i + 1}] ${t}`).join("\n\n")}
               ],
               correctIndex: 0,
               explanation: enforceTunisianLexicon(
-                "الإجابة الأولى صحيحة خاطر أي موضوع تعليمي عندو غرض واضح ومهم."
+                "الإجابة الأولى صحيحة خاطر أي موضوع تعليمي عندو غرض واضح ومهم.",
               ),
             };
           }
@@ -824,7 +824,7 @@ ${contextSnippets.map((t, i) => `[${i + 1}] ${t}`).join("\n\n")}
               "status:",
               pageResp.status,
               "ctype:",
-              ct
+              ct,
             );
             const raw = await pageResp.text();
             if (ct.includes("text/html")) {
@@ -853,7 +853,7 @@ ${contextSnippets.map((t, i) => `[${i + 1}] ${t}`).join("\n\n")}
     const wantsRawPage =
       typeof message === "string" &&
       (/(\bextract\b|استخرج|رجع\s*النص|النص\s*كامل|المحتوى\s*كامل)/i.test(
-        message
+        message,
       ) ||
         /(اعطيني|هات|جيب).{0,30}(النص|text)/i.test(message));
     if (wantsRawPage && fetchedPageText) {
@@ -870,17 +870,17 @@ ${contextSnippets.map((t, i) => `[${i + 1}] ${t}`).join("\n\n")}
       // Has question words or patterns
       const hasQuestionWord =
         /(\?|شنوة|علاش|كيفاش|وين|وقتاش|قداش|شكون|what|when|where|why|how|who|اش هو|اش هي|شنية)/i.test(
-          text
+          text,
         );
       // Needs current/recent info
       const needsCurrentInfo =
         /(تاو|اليوم|today|current|latest|آخر|الآن|هذا الأسبوع|this week|recent)/i.test(
-          text
+          text,
         );
       // Looks for external info (news, weather, events, etc)
       const needsExternalInfo =
         /(أخبار|news|weather|طقس|event|حدث|price|سعر|stock|update|تحديث)/i.test(
-          text
+          text,
         );
 
       return hasQuestionWord || needsCurrentInfo || needsExternalInfo;
@@ -897,7 +897,7 @@ ${contextSnippets.map((t, i) => `[${i + 1}] ${t}`).join("\n\n")}
         if (needsDefaultLoc) {
           baseQuery = `${String(message).slice(
             0,
-            200
+            200,
           )} weather today temperature in Tunis, Tunisia`;
         }
         const q = encodeURIComponent(`[${today}] ` + baseQuery);
@@ -944,7 +944,7 @@ ${contextSnippets.map((t, i) => `[${i + 1}] ${t}`).join("\n\n")}
               try {
                 const urlParams = new URL(url, "https://duckduckgo.com");
                 const actualUrl = decodeURIComponent(
-                  urlParams.searchParams.get("uddg") || ""
+                  urlParams.searchParams.get("uddg") || "",
                 );
                 if (actualUrl) url = actualUrl;
               } catch (e) {
@@ -1000,7 +1000,7 @@ ${contextSnippets.map((t, i) => `[${i + 1}] ${t}`).join("\n\n")}
                   "Fetched search page:",
                   r.url,
                   "len:",
-                  capped.length
+                  capped.length,
                 );
               }
             } catch (e) {
@@ -1090,7 +1090,7 @@ ${contextSnippets.map((t, i) => `[${i + 1}] ${t}`).join("\n\n")}
       console.error(
         "Model API error status:",
         response.status,
-        response.statusText
+        response.statusText,
       );
       console.error("Model API error body:", textBody);
       // Friendly Darija message without exposing provider/model
@@ -1118,7 +1118,7 @@ ${contextSnippets.map((t, i) => `[${i + 1}] ${t}`).join("\n\n")}
     const arabicCount = (reply.match(/[\u0600-\u06FF]/g) || []).length;
     const enFrHint =
       /(\bthe\b|\band\b|\bis\b|\bwith\b|\bfor\b|\bto\b|\ble\b|\bla\b|\bles\b|\bun\b|\bune\b|\bdes\b|\bavec\b|\bpour\b)/i.test(
-        reply
+        reply,
       );
     const needsRewrite =
       darijaPreferred &&
@@ -1206,7 +1206,7 @@ app.post("/export-pdf", async (req, res) => {
 
     // Extract AI responses from messages
     const aiMessages = messages.filter(
-      (msg) => msg.sender === "ai" && !msg.isWelcomeMessage
+      (msg) => msg.sender === "ai" && !msg.isWelcomeMessage,
     );
     // If no AI messages, fall back to last user message so preview still works
     let combinedContent = "";
@@ -1230,7 +1230,7 @@ app.post("/export-pdf", async (req, res) => {
     try {
       if (!GEMINI_API_KEY) {
         console.warn(
-          "Missing GEMINI_API_KEY; showing original text without refinement."
+          "Missing GEMINI_API_KEY; showing original text without refinement.",
         );
       } else {
         const REFINE_INSTRUCTION = `
@@ -1245,7 +1245,7 @@ ${DARIJA_STYLE_GUIDE}
             parts: [
               {
                 text: `المحتوى المراد تحويله للصيغة الأكاديمية:\n${String(
-                  combinedContent
+                  combinedContent,
                 ).slice(0, 12000)}`,
               },
             ],
@@ -1274,7 +1274,7 @@ ${DARIJA_STYLE_GUIDE}
           console.error(
             "Refine API error:",
             response.status,
-            response.statusText
+            response.statusText,
           );
           console.error(textBody);
           // Keep refinedContent as original combinedContent on failure
@@ -1300,7 +1300,7 @@ ${DARIJA_STYLE_GUIDE}
     } catch (e) {
       console.warn(
         "Refinement step failed, falling back to original text:",
-        e.message
+        e.message,
       );
       // refinedContent already defaults to combinedContent
     }
@@ -1334,7 +1334,7 @@ app.post("/download-pdf", async (req, res) => {
 
     // Extract AI responses from messages (excluding welcome message)
     const aiMessages = messages.filter(
-      (msg) => msg.sender === "ai" && !msg.isWelcomeMessage
+      (msg) => msg.sender === "ai" && !msg.isWelcomeMessage,
     );
     // If no AI messages, fall back to last user message so download still works
     let combinedContent = "";
@@ -1357,7 +1357,7 @@ app.post("/download-pdf", async (req, res) => {
     try {
       if (!GEMINI_API_KEY) {
         console.warn(
-          "Missing GEMINI_API_KEY; exporting existing text without refinement."
+          "Missing GEMINI_API_KEY; exporting existing text without refinement.",
         );
       } else {
         const REFINE_INSTRUCTION = `
@@ -1378,7 +1378,7 @@ ${DARIJA_STYLE_GUIDE}
             parts: [
               {
                 text: `المحتوى المراد تحويله للصيغة الأكاديمية:\n${String(
-                  combinedContent
+                  combinedContent,
                 ).slice(0, 12000)}`,
               },
             ],
@@ -1406,7 +1406,7 @@ ${DARIJA_STYLE_GUIDE}
           console.error(
             "Refine API error:",
             response.status,
-            response.statusText
+            response.statusText,
           );
           console.error(textBody);
           // Keep refined as original combinedContent on failure
@@ -1432,7 +1432,7 @@ ${DARIJA_STYLE_GUIDE}
     } catch (e) {
       console.warn(
         "Refinement step failed, falling back to original text:",
-        e.message
+        e.message,
       );
       // refined already defaults to combinedContent
     }
@@ -1446,7 +1446,7 @@ ${DARIJA_STYLE_GUIDE}
     } catch (_) {
       contentHtml = `<pre>${refined.replace(
         /[&<>]/g,
-        (s) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[s])
+        (s) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[s],
       )}</pre>`;
     }
 
@@ -1521,7 +1521,7 @@ ${DARIJA_STYLE_GUIDE}
                 try {
                   const urlParams = new URL(url, "https://duckduckgo.com");
                   const actualUrl = decodeURIComponent(
-                    urlParams.searchParams.get("uddg") || ""
+                    urlParams.searchParams.get("uddg") || "",
                   );
                   if (actualUrl) url = actualUrl;
                 } catch (_) {}
@@ -1541,11 +1541,11 @@ ${DARIJA_STYLE_GUIDE}
       .filter(
         (u) =>
           /^https?:\/\//i.test(u) &&
-          !/^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)/i.test(u)
+          !/^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)/i.test(u),
       );
 
     const allUrls = Array.from(
-      new Set([...urlsFromText, ...urlsFromMsgs, ...webUrls])
+      new Set([...urlsFromText, ...urlsFromMsgs, ...webUrls]),
     )
       .filter((u) => /^https?:\/\//i.test(u))
       .slice(0, 6);
@@ -1717,7 +1717,7 @@ ${DARIJA_STYLE_GUIDE}
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      'attachment; filename="chat-export.pdf"'
+      'attachment; filename="chat-export.pdf"',
     );
     return res.send(pdfBuffer);
   } catch (e) {
@@ -1740,7 +1740,7 @@ app.post("/download-docx", async (req, res) => {
 
     // Use same content extraction logic as PDF
     const aiMessages = messages.filter(
-      (msg) => msg.sender === "ai" && !msg.isWelcomeMessage
+      (msg) => msg.sender === "ai" && !msg.isWelcomeMessage,
     );
     let combinedContent = "";
     if (aiMessages.length === 0) {
@@ -1779,7 +1779,7 @@ ${DARIJA_STYLE_GUIDE}
             parts: [
               {
                 text: `المحتوى المراد تحويله للصيغة الأكاديمية:\n${String(
-                  combinedContent
+                  combinedContent,
                 ).slice(0, 12000)}`,
               },
             ],
@@ -1837,7 +1837,7 @@ ${DARIJA_STYLE_GUIDE}
         .flatMap((m) => String(m.text || "").match(urlRegexGlobal) || [])
         .filter(Boolean);
       const allUrls = Array.from(
-        new Set([...urlsFromText, ...urlsFromMsgs])
+        new Set([...urlsFromText, ...urlsFromMsgs]),
       ).slice(0, 6);
 
       if (allUrls.length > 0) {
@@ -1872,7 +1872,7 @@ ${DARIJA_STYLE_GUIDE}
     res.setHeader("Content-Type", "application/rtf; charset=utf-8");
     res.setHeader(
       "Content-Disposition",
-      'attachment; filename="chat-export.rtf"'
+      'attachment; filename="chat-export.rtf"',
     );
 
     // Send UTF-8 encoded content
@@ -1897,7 +1897,7 @@ app.post("/download-markdown", async (req, res) => {
 
     // Use same content extraction and refinement logic as PDF
     const aiMessages = messages.filter(
-      (msg) => msg.sender === "ai" && !msg.isWelcomeMessage
+      (msg) => msg.sender === "ai" && !msg.isWelcomeMessage,
     );
     let combinedContent = "";
     if (aiMessages.length === 0) {
@@ -1936,7 +1936,7 @@ ${DARIJA_STYLE_GUIDE}
             parts: [
               {
                 text: `المحتوى المراد تحويله للصيغة الأكاديمية:\n${String(
-                  combinedContent
+                  combinedContent,
                 ).slice(0, 12000)}`,
               },
             ],
@@ -1994,7 +1994,7 @@ ${DARIJA_STYLE_GUIDE}
         .flatMap((m) => String(m.text || "").match(urlRegexGlobal) || [])
         .filter(Boolean);
       const allUrls = Array.from(
-        new Set([...urlsFromText, ...urlsFromMsgs])
+        new Set([...urlsFromText, ...urlsFromMsgs]),
       ).slice(0, 6);
 
       if (allUrls.length > 0) {
@@ -2016,7 +2016,7 @@ ${DARIJA_STYLE_GUIDE}
     res.setHeader("Content-Type", "text/markdown; charset=utf-8");
     res.setHeader(
       "Content-Disposition",
-      'attachment; filename="chat-export.md"'
+      'attachment; filename="chat-export.md"',
     );
     return res.send(finalMarkdown);
   } catch (e) {
