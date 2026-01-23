@@ -73,7 +73,7 @@ function findFirstUrl(text) {
 }
 
 async function callGemini({ apiKey, model, contents, temperature = 0.7, maxOutputTokens = 2048 }) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+  const url = `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(
     model,
   )}:generateContent?key=${encodeURIComponent(apiKey)}`;
 
@@ -126,7 +126,7 @@ export async function onRequestOptions() {
 export async function onRequestPost({ request, env }) {
   try {
     const apiKey = env.GEMINI_API_KEY;
-    const model = env.GEMINI_MODEL || "gemini-1.5-flash";
+    const model = env.GEMINI_MODEL || "gemini-2.5-flash";
 
     if (!apiKey) {
       return withCors(jsonResponse({ error: "Missing GEMINI_API_KEY" }, 500));
