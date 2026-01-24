@@ -17,6 +17,7 @@ GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 function App() {
   const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
   const [user, setUser] = useState(null);
+  const [profileName, setProfileName] = useState('')
   const [conversationId, setConversationId] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [loadingConversations, setLoadingConversations] = useState(false);
@@ -34,6 +35,20 @@ function App() {
   const [conversationMenuId, setConversationMenuId] = useState(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState(null)
   const [renameModal, setRenameModal] = useState({ open: false, conv: null, value: '' })
+
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false)
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false)
+  const [deletePassword, setDeletePassword] = useState('')
+  const [deletePasswordOk, setDeletePasswordOk] = useState(false)
+  const [deletePasswordChecking, setDeletePasswordChecking] = useState(false)
+  const [deletePasswordMsg, setDeletePasswordMsg] = useState('')
+  const [deletingAccount, setDeletingAccount] = useState(false)
+  const [deleteAccountError, setDeleteAccountError] = useState('')
+
+  const accountBtnRef = useRef(null)
+  const accountMenuRef = useRef(null)
+  const deleteAccountModalRef = useRef(null)
+
   const messagesEndRef = useRef(null)
   const lastUserIdRef = useRef(null)
 
@@ -203,6 +218,137 @@ function App() {
       }
     }
   }, [user])
+
+  // Load display name for avatar letter
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      if (!user?.id) { setProfileName(''); return }
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('display_name')
+          .eq('user_id', user.id)
+          .maybeSingle()
+        if (cancelled) return
+        if (error) throw error
+        const fromProfile = data?.display_name || ''
+        const fromMeta = user?.user_metadata?.username || user?.user_metadata?.display_name || ''
+        const fromEmail = user?.email?.split('@')?.[0] || ''
+        setProfileName(fromProfile || fromMeta || fromEmail)
+      } catch (e) {
+        const fromMeta = user?.user_metadata?.username || user?.user_metadata?.display_name || ''
+        const fromEmail = user?.email?.split('@')?.[0] || ''
+        setProfileName(fromMeta || fromEmail)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [user])
+
+  // Close account dropdown on outside click
+  useEffect(() => {
+    const onDown = (e) => {
+      if (!accountMenuOpen) return
+      const t = e.target
+      if (accountBtnRef.current?.contains(t)) return
+      if (accountMenuRef.current?.contains(t)) return
+      setAccountMenuOpen(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [accountMenuOpen])
+
+  // Debounced password verification for delete-account
+  useEffect(() => {
+    let timer = null
+    let aborted = false
+    if (!deleteAccountOpen) return
+
+    setDeleteAccountError('')
+    if (!deletePassword) {
+      setDeletePasswordOk(false)
+      setDeletePasswordChecking(false)
+      setDeletePasswordMsg('')
+      return
+    }
+
+    setDeletePasswordChecking(true)
+    setDeletePasswordMsg('نثبتّو كلمة السر…')
+    timer = setTimeout(async () => {
+      try {
+        const email = user?.email
+        if (!email) throw new Error('NO_EMAIL')
+        const res = await fetch(`${API_BASE}/api/verify-password`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password: deletePassword })
+        })
+        if (aborted) return
+        if (res.ok) {
+          setDeletePasswordOk(true)
+          setDeletePasswordMsg('كلمة السرّ صحيحة')
+        } else {
+          setDeletePasswordOk(false)
+          setDeletePasswordMsg('كلمة السرّ غالطة')
+        }
+      } catch (e) {
+        if (aborted) return
+        setDeletePasswordOk(false)
+        setDeletePasswordMsg('ما نجّمتش نثبتّ كلمة السرّ توّا')
+      } finally {
+        if (!aborted) setDeletePasswordChecking(false)
+      }
+    }, 450)
+
+    return () => {
+      aborted = true
+      if (timer) clearTimeout(timer)
+    }
+  }, [deletePassword, deleteAccountOpen, API_BASE, user])
+
+  const openDeleteAccount = () => {
+    setAccountMenuOpen(false)
+    setDeleteAccountOpen(true)
+    setDeletePassword('')
+    setDeletePasswordOk(false)
+    setDeletePasswordChecking(false)
+    setDeletePasswordMsg('')
+    setDeleteAccountError('')
+  }
+
+  const closeDeleteAccount = () => {
+    setDeleteAccountOpen(false)
+    setDeletePassword('')
+    setDeletePasswordOk(false)
+    setDeletePasswordChecking(false)
+    setDeletePasswordMsg('')
+    setDeleteAccountError('')
+  }
+
+  const handleDeleteAccount = async () => {
+    if (!deletePasswordOk || deletingAccount) return
+    setDeletingAccount(true)
+    setDeleteAccountError('')
+    try {
+      const email = user?.email
+      if (!email) throw new Error('NO_EMAIL')
+      const res = await fetch(`${API_BASE}/api/delete-account`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: deletePassword })
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || 'DELETE_FAILED')
+      }
+      await supabase.auth.signOut()
+      window.location.href = 'https://tunia.pages.dev'
+    } catch (e) {
+      setDeleteAccountError(e?.message || 'صار مشكل وقت حذف الحساب')
+    } finally {
+      setDeletingAccount(false)
+    }
+  }
 
   // Event listener for quiz regeneration with custom parameters
   useEffect(() => {
@@ -709,12 +855,118 @@ async function readPDFFile(file) {
           </div>
         </div>
         <div className="sidebar-footer">
-          <button className="signout-btn" onClick={async()=>{ await supabase.auth.signOut(); }}>
-            <LogOut size={16} />
-            <span>تسجيل الخروج</span>
-          </button>
+          <div className="account-area">
+            <button
+              ref={accountBtnRef}
+              className="account-btn"
+              onClick={() => setAccountMenuOpen(prev => !prev)}
+              aria-label="Account"
+              type="button"
+            >
+              <span className="account-letter">
+                {(profileName || user?.email || 'U').trim().charAt(0).toUpperCase()}
+              </span>
+            </button>
+
+            <AnimatePresence>
+              {accountMenuOpen && (
+                <motion.div
+                  ref={accountMenuRef}
+                  className="account-dropdown"
+                  initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                  transition={{ duration: 0.16, ease: 'easeOut' }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setAccountMenuOpen(false)
+                      await supabase.auth.signOut()
+                    }}
+                  >
+                    <LogOut size={14} />
+                    <span>تسجيل الخروج</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="danger"
+                    onClick={openDeleteAccount}
+                  >
+                    <Trash2 size={14} />
+                    <span>حذف الحساب</span>
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </aside>
+
+      {/* Delete Account Modal */}
+      <AnimatePresence>
+        {deleteAccountOpen && (
+          <motion.div
+            className="modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            onClick={closeDeleteAccount}
+          >
+            <motion.div
+              ref={deleteAccountModalRef}
+              className="confirm-modal"
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.98 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h6>متأكد باش تحذف حسابك؟</h6>
+              <p>
+                كانك تحذف الحساب، المحادثات الكلّ وبياناتك باش تتمسح نهائياً وما عادش تنجم ترجعهم.
+              </p>
+
+              <div className="delete-account-box">
+                <label className="form-label" style={{ color: '#d1d1d1', textAlign: 'right', width: '100%' }}>
+                  اكتب كلمة السرّ متاعك باش نكمّلو
+                </label>
+                <input
+                  type="password"
+                  className="rename-input"
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  placeholder="كلمة السرّ"
+                  autoFocus
+                />
+                {deletePasswordMsg && (
+                  <div className={`delete-hint ${deletePasswordOk ? 'ok' : ''}`}>
+                    {deletePasswordChecking ? '… ' : ''}{deletePasswordMsg}
+                  </div>
+                )}
+                {deleteAccountError && (
+                  <div className="alert alert-danger py-2 small" style={{ marginTop: 10 }}>
+                    {deleteAccountError}
+                  </div>
+                )}
+              </div>
+
+              <div className="confirm-actions">
+                <button className="btn-cancel" onClick={closeDeleteAccount} disabled={deletingAccount}>إلغاء</button>
+                <button
+                  className={`btn-danger ${(!deletePasswordOk || deletingAccount) ? 'disabled' : ''}`}
+                  onClick={handleDeleteAccount}
+                  disabled={!deletePasswordOk || deletingAccount}
+                >
+                  {deletingAccount ? 'جاري الحذف…' : 'حذف نهائي'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Delete Confirmation Modal */}
       {deleteConfirmId && (

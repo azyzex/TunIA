@@ -14,6 +14,68 @@ app.use(express.json({ limit: "10mb" }));
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+
+async function verifySupabasePassword({ email, password }) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    const err = new Error("Missing SUPABASE_URL / SUPABASE_ANON_KEY");
+    err.status = 500;
+    throw err;
+  }
+  const url = `${String(SUPABASE_URL).replace(/\/$/, "")}/auth/v1/token?grant_type=password`;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ email, password }),
+  });
+
+  const raw = await resp.text();
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    data = null;
+  }
+
+  if (!resp.ok) {
+    const err = new Error("INVALID_CREDENTIALS");
+    err.status = 401;
+    err.data = data;
+    throw err;
+  }
+
+  return data;
+}
+
+async function adminDeleteSupabaseUser(userId) {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+    const err = new Error("Missing SUPABASE_URL / SUPABASE_SERVICE_KEY");
+    err.status = 500;
+    throw err;
+  }
+  const url = `${String(SUPABASE_URL).replace(/\/$/, "")}/auth/v1/admin/users/${encodeURIComponent(
+    userId,
+  )}`;
+  const resp = await fetch(url, {
+    method: "DELETE",
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+    },
+  });
+  const raw = await resp.text();
+  if (!resp.ok) {
+    const err = new Error(raw || `Delete failed (${resp.status})`);
+    err.status = resp.status;
+    throw err;
+  }
+}
+
 // Replace non-Tunisian terms with Tunisian equivalents using safe Arabic word boundaries
 function enforceTunisianLexicon(input) {
   if (!input || typeof input !== "string") return input;
@@ -319,6 +381,45 @@ function isIdentityQuestion(msg) {
 
   return false;
 }
+
+app.post("/api/verify-password", async (req, res) => {
+  try {
+    const email = typeof req?.body?.email === "string" ? req.body.email.trim() : "";
+    const password = typeof req?.body?.password === "string" ? req.body.password : "";
+    if (!email || !password) return res.status(400).json({ ok: false });
+    await verifySupabasePassword({ email, password });
+    return res.json({ ok: true });
+  } catch (err) {
+    const status = err?.status || 500;
+    if (status === 401) return res.status(401).json({ ok: false });
+    return res.status(status).json({ ok: false, error: err?.message || String(err) });
+  }
+});
+
+app.post("/api/delete-account", async (req, res) => {
+  try {
+    const email = typeof req?.body?.email === "string" ? req.body.email.trim() : "";
+    const password = typeof req?.body?.password === "string" ? req.body.password : "";
+    if (!email || !password) return res.status(400).json({ ok: false });
+
+    const data = await verifySupabasePassword({ email, password });
+    const userId = data?.user?.id;
+    if (!userId) {
+      return res.status(500).json({ ok: false, error: "NO_USER" });
+    }
+
+    await adminDeleteSupabaseUser(userId);
+    return res.json({ ok: true });
+  } catch (err) {
+    const status = err?.status || 500;
+    if (status === 401) {
+      return res.status(401).json({ ok: false, error: "كلمة السرّ موش صحيحة." });
+    }
+    return res
+      .status(status)
+      .json({ ok: false, error: "صار مشكل وقت حذف الحساب.", details: err?.message || String(err) });
+  }
+});
 
 app.post("/api/chat", async (req, res) => {
   const {

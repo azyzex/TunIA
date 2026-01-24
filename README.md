@@ -59,6 +59,12 @@ In Cloudflare Dashboard → Pages → your project → Settings → Environment 
 - `GEMINI_MODEL` (optional, default: `gemini-2.5-flash`)
 - `DEBUG_KEYS` (optional) set to `1` to include `x-gemini-key-index` and `x-gemini-keys-count` headers in `/api/chat` responses (for testing rotation)
 
+For Supabase-powered account deletion (server-side, keeps keys secret):
+
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_KEY` (service_role key; required to delete users)
+
 ### 2) Frontend API base
 
 In production, the frontend calls same-origin endpoints like `/api/chat`.

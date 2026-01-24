@@ -184,6 +184,94 @@
   margin-top: auto;
 }
 
+.account-area {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.account-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.account-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.account-letter {
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.account-dropdown {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  background: #2a2a2a;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 6px;
+  min-width: 190px;
+  z-index: 1200;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
+}
+
+.account-dropdown button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: #d1d1d1;
+  cursor: pointer;
+  font-size: 0.85rem;
+  direction: rtl;
+}
+
+.account-dropdown button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.account-dropdown button.danger {
+  color: #f87171;
+}
+
+.account-dropdown button.danger:hover {
+  background: rgba(248, 113, 113, 0.15);
+}
+
+.delete-hint {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: #a1a1a1;
+  text-align: right;
+}
+
+.delete-hint.ok {
+  color: #86efac;
+}
+
+.btn-danger.disabled {
+  opacity: 0.55;
+}
+
 .signout-btn {
   display: flex;
   align-items: center;
