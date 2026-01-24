@@ -193,6 +193,77 @@ const DARIJA_STYLE_GUIDE = `
 
 `;
 
+const IDENTITY_REPLY =
+  'I am TunIA made by mohamed aziz guenni to provide aid specifically in tunisian darija. LinkedIn: "https://www.linkedin.com/in/mohamed-aziz-guenni/"';
+
+function normalizeIdentityText(msg) {
+  if (!msg || typeof msg !== "string") return "";
+  return msg
+    .toLowerCase()
+    .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, "")
+    .replace(/\u0640/g, "")
+    .replace(/[^\u0600-\u06FFa-z0-9]+/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isIdentityQuestion(msg) {
+  const text = normalizeIdentityText(msg);
+  if (!text) return false;
+
+  // English
+  if (text.includes("who are you")) return true;
+  if (text.includes("who made you")) return true;
+  if (text.includes("who created you")) return true;
+  if (text.includes("who built you")) return true;
+  if (text.includes("your creator")) return true;
+  if (text.includes("who developed you")) return true;
+
+  // Arabic / Tunisian Darija-ish
+  const hasWho =
+    text.includes("شكون") ||
+    text.includes("شنو") ||
+    text.includes("شنية") ||
+    text.includes("من");
+  if (!hasWho) return false;
+
+  if (
+    text.includes("شكون انت") ||
+    text.includes("شكون انتي") ||
+    text.includes("شنية انت") ||
+    text.includes("شنية انتي") ||
+    text.includes("شنو انت") ||
+    text.includes("شنو انتي") ||
+    text.includes("شنكونك")
+  ) {
+    return true;
+  }
+
+  const makerSignals = [
+    "صنعك",
+    "عملك",
+    "طورك",
+    "برمجك",
+    "صممك",
+    "خلقك",
+    "مطورك",
+    "صاحبك",
+  ];
+  if (makerSignals.some((k) => text.includes(k))) return true;
+  if (
+    text.includes("شكون اللي") &&
+    (text.includes("عملك") ||
+      text.includes("صنعك") ||
+      text.includes("طورك") ||
+      text.includes("برمجك") ||
+      text.includes("صممك"))
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 app.post("/api/chat", async (req, res) => {
   const {
     message,
@@ -210,6 +281,11 @@ app.post("/api/chat", async (req, res) => {
     quizHints,
   } = req.body || {};
   const { fetchUrl } = req.body || {};
+
+  if (isIdentityQuestion(message)) {
+    return res.json({ reply: IDENTITY_REPLY });
+  }
+
   // Language request detection (explicit instructions override Darija)
   const detectRequestedLanguage = (msg) => {
     if (!msg || typeof msg !== "string") return null;

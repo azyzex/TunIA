@@ -7,6 +7,9 @@ const STYLE_GUIDE = `
 - ما تذكرش المزوّد/المنصّة في الرد.
 `;
 
+const IDENTITY_REPLY =
+  'I am TunIA made by mohamed aziz guenni to provide aid specifically in tunisian darija. LinkedIn: "https://www.linkedin.com/in/mohamed-aziz-guenni/"';
+
 function jsonResponse(body, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(body), {
     status,
@@ -117,6 +120,85 @@ function getDebugKeyHeaders(env, usedIndex, totalKeys) {
   };
 }
 
+function normalizeIdentityText(msg) {
+  if (!msg || typeof msg !== "string") return "";
+  return msg
+    .toLowerCase()
+    .replace(/[\u064B-\u065F\u0670\u06D6-\u06ED]/g, "") // Arabic diacritics
+    .replace(/\u0640/g, "") // tatweel
+    .replace(/[^\u0600-\u06FFa-z0-9]+/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isIdentityQuestion(msg) {
+  const text = normalizeIdentityText(msg);
+  if (!text) return false;
+
+  // English
+  if (text.includes("who are you")) return true;
+  if (text.includes("who made you")) return true;
+  if (text.includes("who created you")) return true;
+  if (text.includes("who built you")) return true;
+  if (text.includes("your creator")) return true;
+  if (text.includes("who developed you")) return true;
+
+  // Arabic / Tunisian Darija-ish
+  const hasWho =
+    text.includes("شكون") ||
+    text.includes("شنو") ||
+    text.includes("شنية") ||
+    text.includes("من");
+  if (!hasWho) return false;
+
+  // "who are you"
+  if (
+    text.includes("شكون انت") ||
+    text.includes("شكون انتي") ||
+    text.includes("شنية انت") ||
+    text.includes("شنية انتي") ||
+    text.includes("شنو انت") ||
+    text.includes("شنو انتي") ||
+    text.includes("شنكونك")
+  ) {
+    return true;
+  }
+
+  // "who made/created you"
+  const makerSignals = [
+    "صنعك",
+    "عملك",
+    "طورك",
+    "طو رك",
+    "برمجك",
+    "صممك",
+    "خلقك",
+    "مطورك",
+    "صاحبك",
+  ];
+  if (
+    makerSignals.some(
+      (k) => text.includes(k.replace(/\s+/g, "")) || text.includes(k),
+    )
+  ) {
+    return true;
+  }
+
+  // Common composed phrases
+  if (
+    text.includes("شكون اللي") &&
+    (text.includes("عملك") ||
+      text.includes("صنعك") ||
+      text.includes("طورك") ||
+      text.includes("برمجك") ||
+      text.includes("صممك"))
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 async function callGemini({
   apiKey,
   model,
@@ -213,6 +295,10 @@ export async function onRequestPost({ request, env }) {
     } = body || {};
 
     const userMessage = typeof message === "string" ? message : "";
+
+    if (isIdentityQuestion(userMessage)) {
+      return withCors(jsonResponse({ reply: IDENTITY_REPLY }));
+    }
 
     if (quizMode && userMessage.trim()) {
       const subject = userMessage.trim().slice(0, 400);
