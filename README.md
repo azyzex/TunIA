@@ -57,6 +57,7 @@ In Cloudflare Dashboard → Pages → your project → Settings → Environment 
 - `GEMINI_API_KEY` (required if you don't set `GEMINI_API_KEYS`)
 - `GEMINI_API_KEYS` (optional) comma/newline-separated list of keys; the backend auto-falls-back if one key hits rate/quota limits
 - `GEMINI_MODEL` (optional, default: `gemini-2.5-flash`)
+- `DEBUG_KEYS` (optional) set to `1` to include `x-gemini-key-index` and `x-gemini-keys-count` headers in `/api/chat` responses (for testing rotation)
 
 ### 2) Frontend API base
 

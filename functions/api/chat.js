@@ -62,7 +62,9 @@ function needsWebSearch(msg) {
       text,
     );
   const needsExternalInfo =
-    /(أخبار|news|weather|طقس|event|حدث|price|سعر|stock|update|تحديث)/i.test(text);
+    /(أخبار|news|weather|طقس|event|حدث|price|سعر|stock|update|تحديث)/i.test(
+      text,
+    );
   return hasQuestionWord || needsCurrentInfo || needsExternalInfo;
 }
 
@@ -103,7 +105,25 @@ function isQuotaOrRateLimitError({ status, message }) {
   );
 }
 
-async function callGemini({ apiKey, model, contents, temperature = 0.7, maxOutputTokens = 2048 }) {
+function getDebugKeyHeaders(env, usedIndex, totalKeys) {
+  const raw = String(env?.DEBUG_KEYS || "")
+    .trim()
+    .toLowerCase();
+  const enabled = raw === "1" || raw === "true" || raw === "yes";
+  if (!enabled) return {};
+  return {
+    "x-gemini-key-index": String(usedIndex),
+    "x-gemini-keys-count": String(totalKeys),
+  };
+}
+
+async function callGemini({
+  apiKey,
+  model,
+  contents,
+  temperature = 0.7,
+  maxOutputTokens = 2048,
+}) {
   const url = `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(
     model,
   )}:generateContent?key=${encodeURIComponent(apiKey)}`;
@@ -126,7 +146,8 @@ async function callGemini({ apiKey, model, contents, temperature = 0.7, maxOutpu
   }
 
   if (!resp.ok) {
-    const message = data?.error?.message || raw || `Gemini error (${resp.status})`;
+    const message =
+      data?.error?.message || raw || `Gemini error (${resp.status})`;
     const err = new Error(message);
     err.status = resp.status;
     throw err;
@@ -137,7 +158,9 @@ async function callGemini({ apiKey, model, contents, temperature = 0.7, maxOutpu
 }
 
 function fallbackQuiz({ subject, qCount, aCount }) {
-  const clean = String(subject || "").trim().slice(0, 200);
+  const clean = String(subject || "")
+    .trim()
+    .slice(0, 200);
   return Array.from({ length: qCount }, (_, i) => ({
     type: "mcq",
     question: `سؤال ${i + 1}: شنوة الغرض من "${clean}"؟`,
@@ -193,10 +216,17 @@ export async function onRequestPost({ request, env }) {
 
     if (quizMode && userMessage.trim()) {
       const subject = userMessage.trim().slice(0, 400);
-      const qCount = Math.max(2, Math.min(40, parseInt(quizQuestions || 5, 10)));
+      const qCount = Math.max(
+        2,
+        Math.min(40, parseInt(quizQuestions || 5, 10)),
+      );
       const aCount = Math.max(2, Math.min(5, parseInt(quizOptions || 4, 10)));
-      const difficulties = Array.isArray(quizDifficulties) && quizDifficulties.length ? quizDifficulties : ["medium"];
-      const types = Array.isArray(quizTypes) && quizTypes.length ? quizTypes : ["mcq"];
+      const difficulties =
+        Array.isArray(quizDifficulties) && quizDifficulties.length
+          ? quizDifficulties
+          : ["medium"];
+      const types =
+        Array.isArray(quizTypes) && quizTypes.length ? quizTypes : ["mcq"];
 
       let context = "";
       if (pdfText && typeof pdfText === "string" && pdfText.trim()) {
@@ -229,8 +259,10 @@ ${context}
       let lastErr = null;
       const start = Math.floor(Math.random() * apiKeys.length);
       let result = null;
+      let usedIndex = -1;
       for (let i = 0; i < apiKeys.length; i++) {
-        const apiKey = apiKeys[(start + i) % apiKeys.length];
+        const index = (start + i) % apiKeys.length;
+        const apiKey = apiKeys[index];
         try {
           result = await callGemini({
             apiKey,
@@ -240,10 +272,13 @@ ${context}
             maxOutputTokens: 2048,
           });
           lastErr = null;
+          usedIndex = index;
           break;
         } catch (e) {
           lastErr = e;
-          if (!isQuotaOrRateLimitError({ status: e?.status, message: e?.message })) {
+          if (
+            !isQuotaOrRateLimitError({ status: e?.status, message: e?.message })
+          ) {
             break;
           }
         }
@@ -261,7 +296,13 @@ ${context}
         quiz = fallbackQuiz({ subject, qCount, aCount });
       }
 
-      return withCors(jsonResponse({ isQuiz: true, quiz }));
+      return withCors(
+        jsonResponse(
+          { isQuiz: true, quiz },
+          200,
+          getDebugKeyHeaders(env, usedIndex, apiKeys.length),
+        ),
+      );
     }
 
     // Optional URL fetch (if a URL is present in message or history)
@@ -282,7 +323,9 @@ ${context}
 
     if (fetchUrl && candidateUrl && /^https?:\/\//i.test(candidateUrl)) {
       try {
-        const pageResp = await fetch(candidateUrl, { headers: { "user-agent": "Mozilla/5.0" } });
+        const pageResp = await fetch(candidateUrl, {
+          headers: { "user-agent": "Mozilla/5.0" },
+        });
         const ct = (pageResp.headers.get("content-type") || "").toLowerCase();
         const raw = await pageResp.text();
         const text = ct.includes("text/html") ? safeTextFromHtml(raw) : raw;
@@ -299,7 +342,9 @@ ${context}
         const today = new Date().toISOString().slice(0, 10);
         const q = encodeURIComponent(`[${today}] ` + userMessage.slice(0, 200));
         const ddgUrl = `https://api.duckduckgo.com/?q=${q}&format=json&no_redirect=1&no_html=1&skip_disambig=1`;
-        const ddgResp = await fetch(ddgUrl, { headers: { "user-agent": "Mozilla/5.0" } });
+        const ddgResp = await fetch(ddgUrl, {
+          headers: { "user-agent": "Mozilla/5.0" },
+        });
         const ddgJson = await ddgResp.json().catch(() => null);
         const abstract = ddgJson?.AbstractText || ddgJson?.Abstract || "";
         if (abstract) {
@@ -312,10 +357,14 @@ ${context}
 
     const contextParts = [];
     if (pdfText && typeof pdfText === "string" && pdfText.trim()) {
-      contextParts.push(`المحتوى من PDF (مختصر):\n${pdfText.replace(/\s+/g, " ").trim().slice(0, 8000)}`);
+      contextParts.push(
+        `المحتوى من PDF (مختصر):\n${pdfText.replace(/\s+/g, " ").trim().slice(0, 8000)}`,
+      );
     }
     if (fetchedPageText) {
-      contextParts.push(`نص من رابط (مختصر):\n${fetchedPageText.slice(0, 8000)}`);
+      contextParts.push(
+        `نص من رابط (مختصر):\n${fetchedPageText.slice(0, 8000)}`,
+      );
     }
     if (webSnippet) {
       contextParts.push(webSnippet.trim());
@@ -337,7 +386,9 @@ ${context}
 
     const lastUserParts = [{ text: userMessage }];
     if (image?.data && image?.mimeType) {
-      lastUserParts.push({ inlineData: { data: image.data, mimeType: image.mimeType } });
+      lastUserParts.push({
+        inlineData: { data: image.data, mimeType: image.mimeType },
+      });
     }
 
     contents.push({ role: "user", parts: lastUserParts });
@@ -345,8 +396,10 @@ ${context}
     let lastErr = null;
     const start = Math.floor(Math.random() * apiKeys.length);
     let result = null;
+    let usedIndex = -1;
     for (let i = 0; i < apiKeys.length; i++) {
-      const apiKey = apiKeys[(start + i) % apiKeys.length];
+      const index = (start + i) % apiKeys.length;
+      const apiKey = apiKeys[index];
       try {
         result = await callGemini({
           apiKey,
@@ -356,10 +409,13 @@ ${context}
           maxOutputTokens: 2048,
         });
         lastErr = null;
+        usedIndex = index;
         break;
       } catch (e) {
         lastErr = e;
-        if (!isQuotaOrRateLimitError({ status: e?.status, message: e?.message })) {
+        if (
+          !isQuotaOrRateLimitError({ status: e?.status, message: e?.message })
+        ) {
           break;
         }
       }
@@ -382,8 +438,19 @@ ${context}
       );
     }
 
-    return withCors(jsonResponse({ reply }));
+    return withCors(
+      jsonResponse(
+        { reply },
+        200,
+        getDebugKeyHeaders(env, usedIndex, apiKeys.length),
+      ),
+    );
   } catch (err) {
-    return withCors(jsonResponse({ error: "API error", details: err?.message || String(err) }, 500));
+    return withCors(
+      jsonResponse(
+        { error: "API error", details: err?.message || String(err) },
+        500,
+      ),
+    );
   }
 }
