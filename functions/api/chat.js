@@ -8,7 +8,7 @@ const STYLE_GUIDE = `
 `;
 
 const IDENTITY_REPLY =
-  'I am TunIA made by mohamed aziz guenni to provide aid specifically in tunisian darija. LinkedIn: "https://www.linkedin.com/in/mohamed-aziz-guenni/"';
+  "أنا TunIA، معمولة من طرف mohamed aziz guenni باش نعاون بالتحديد بالدارجة التونسية. LinkedIn: https://www.linkedin.com/in/mohamed-aziz-guenni/";
 
 function jsonResponse(body, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(body), {
@@ -143,13 +143,33 @@ function isIdentityQuestion(msg) {
   if (text.includes("your creator")) return true;
   if (text.includes("who developed you")) return true;
 
-  // Arabic / Tunisian Darija-ish
-  const hasWho =
-    text.includes("شكون") ||
-    text.includes("شنو") ||
-    text.includes("شنية") ||
-    text.includes("من");
-  if (!hasWho) return false;
+  // Extra English variants
+  if (text.includes("what are you")) return true;
+  if (text.includes("tell me about you")) return true;
+  if (text.includes("about you")) return true;
+  if (text.includes("who owns you")) return true;
+  if (text.includes("who is behind you")) return true;
+  if (text.includes("who trained you")) return true;
+
+  // Arabic / Tunisian Darija-ish (be careful with generic "من")
+  const hasWhoWord =
+    text.includes("شكون") || text.includes("شنو") || text.includes("شنية");
+  const hasMinWho =
+    text.includes("من") &&
+    (text.includes("انت") ||
+      text.includes("انتي") ||
+      text.includes("تكون") ||
+      text.includes("صنعك") ||
+      text.includes("عملك") ||
+      text.includes("طورك") ||
+      text.includes("برمجك") ||
+      text.includes("صممك") ||
+      text.includes("خلقك") ||
+      text.includes("مطورك") ||
+      text.includes("صاحبك") ||
+      text.includes("وراك") ||
+      text.includes("خلفك"));
+  if (!hasWhoWord && !hasMinWho) return false;
 
   // "who are you"
   if (
@@ -164,25 +184,44 @@ function isIdentityQuestion(msg) {
     return true;
   }
 
+  // Name / intro variants
+  if (
+    text.includes("عر ف روحك") ||
+    text.includes("عرف روحك") ||
+    (text.includes("عر ف") && text.includes("روحك"))
+  )
+    return true;
+  if (text.includes("قد م روحك") || text.includes("قدم روحك")) return true;
+  if (
+    text.includes("شنية اسمك") ||
+    text.includes("شنو اسمك") ||
+    text.includes("اسمك شنو") ||
+    text.includes("اسمك شنية")
+  )
+    return true;
+  if (
+    text.includes("شنية tunia") ||
+    text.includes("شنو tunia") ||
+    text.includes("شنية تونيا") ||
+    text.includes("شنو تونيا")
+  )
+    return true;
+  if (text.includes("من انت") || text.includes("من تكون")) return true;
+
   // "who made/created you"
   const makerSignals = [
     "صنعك",
     "عملك",
     "طورك",
-    "طو رك",
     "برمجك",
     "صممك",
     "خلقك",
     "مطورك",
     "صاحبك",
+    "وراك",
+    "خلفك",
   ];
-  if (
-    makerSignals.some(
-      (k) => text.includes(k.replace(/\s+/g, "")) || text.includes(k),
-    )
-  ) {
-    return true;
-  }
+  if (makerSignals.some((k) => text.includes(k))) return true;
 
   // Common composed phrases
   if (
@@ -195,6 +234,16 @@ function isIdentityQuestion(msg) {
   ) {
     return true;
   }
+
+  // Extra composed phrases
+  if (text.includes("شكون وراك") || text.includes("شكون خلفك")) return true;
+  if (
+    text.includes("شكون صانعك") ||
+    text.includes("شكون صممك") ||
+    text.includes("شكون برمجك") ||
+    text.includes("شكون طورك")
+  )
+    return true;
 
   return false;
 }
