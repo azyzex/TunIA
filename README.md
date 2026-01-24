@@ -54,7 +54,8 @@ This repo supports a free backend on Cloudflare using **Pages Functions** (same 
 
 In Cloudflare Dashboard → Pages → your project → Settings → Environment variables:
 
-- `GEMINI_API_KEY` (required)
+- `GEMINI_API_KEY` (required if you don't set `GEMINI_API_KEYS`)
+- `GEMINI_API_KEYS` (optional) comma/newline-separated list of keys; the backend auto-falls-back if one key hits rate/quota limits
 - `GEMINI_MODEL` (optional, default: `gemini-2.5-flash`)
 
 ### 2) Frontend API base

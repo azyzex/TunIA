@@ -72,6 +72,37 @@ function findFirstUrl(text) {
   return m?.[0] || null;
 }
 
+function getGeminiKeys(env) {
+  const keys = [];
+
+  // Preferred: comma/newline-separated list
+  if (env.GEMINI_API_KEYS) {
+    for (const k of String(env.GEMINI_API_KEYS).split(/[,\n]/g)) {
+      const trimmed = k.trim();
+      if (trimmed) keys.push(trimmed);
+    }
+  }
+
+  // Backwards-compatible single key
+  if (env.GEMINI_API_KEY) {
+    const trimmed = String(env.GEMINI_API_KEY).trim();
+    if (trimmed && !keys.includes(trimmed)) keys.push(trimmed);
+  }
+
+  return keys;
+}
+
+function isQuotaOrRateLimitError({ status, message }) {
+  if (status === 429) return true;
+  const msg = String(message || "").toLowerCase();
+  return (
+    msg.includes("resource_exhausted") ||
+    msg.includes("quota") ||
+    msg.includes("rate") ||
+    msg.includes("too many")
+  );
+}
+
 async function callGemini({ apiKey, model, contents, temperature = 0.7, maxOutputTokens = 2048 }) {
   const url = `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(
     model,
@@ -96,7 +127,9 @@ async function callGemini({ apiKey, model, contents, temperature = 0.7, maxOutpu
 
   if (!resp.ok) {
     const message = data?.error?.message || raw || `Gemini error (${resp.status})`;
-    throw new Error(message);
+    const err = new Error(message);
+    err.status = resp.status;
+    throw err;
   }
 
   const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -125,11 +158,16 @@ export async function onRequestOptions() {
 
 export async function onRequestPost({ request, env }) {
   try {
-    const apiKey = env.GEMINI_API_KEY;
+    const apiKeys = getGeminiKeys(env);
     const model = env.GEMINI_MODEL || "gemini-2.5-flash";
 
-    if (!apiKey) {
-      return withCors(jsonResponse({ error: "Missing GEMINI_API_KEY" }, 500));
+    if (!apiKeys.length) {
+      return withCors(
+        jsonResponse(
+          { error: "Missing GEMINI_API_KEY (or GEMINI_API_KEYS)" },
+          500,
+        ),
+      );
     }
 
     const body = await request.json().catch(() => ({}));
@@ -187,7 +225,30 @@ ${context}
 `;
 
       const contents = [{ role: "user", parts: [{ text: quizPrompt }] }];
-      const result = await callGemini({ apiKey, model, contents, temperature: 0.5, maxOutputTokens: 2048 });
+
+      let lastErr = null;
+      const start = Math.floor(Math.random() * apiKeys.length);
+      let result = null;
+      for (let i = 0; i < apiKeys.length; i++) {
+        const apiKey = apiKeys[(start + i) % apiKeys.length];
+        try {
+          result = await callGemini({
+            apiKey,
+            model,
+            contents,
+            temperature: 0.5,
+            maxOutputTokens: 2048,
+          });
+          lastErr = null;
+          break;
+        } catch (e) {
+          lastErr = e;
+          if (!isQuotaOrRateLimitError({ status: e?.status, message: e?.message })) {
+            break;
+          }
+        }
+      }
+      if (lastErr) throw lastErr;
 
       let quiz = null;
       try {
@@ -281,7 +342,29 @@ ${context}
 
     contents.push({ role: "user", parts: lastUserParts });
 
-    const result = await callGemini({ apiKey, model, contents, temperature: 0.7, maxOutputTokens: 2048 });
+    let lastErr = null;
+    const start = Math.floor(Math.random() * apiKeys.length);
+    let result = null;
+    for (let i = 0; i < apiKeys.length; i++) {
+      const apiKey = apiKeys[(start + i) % apiKeys.length];
+      try {
+        result = await callGemini({
+          apiKey,
+          model,
+          contents,
+          temperature: 0.7,
+          maxOutputTokens: 2048,
+        });
+        lastErr = null;
+        break;
+      } catch (e) {
+        lastErr = e;
+        if (!isQuotaOrRateLimitError({ status: e?.status, message: e?.message })) {
+          break;
+        }
+      }
+    }
+    if (lastErr) throw lastErr;
     let reply = (result.text || "").trim();
 
     if (!reply) {
