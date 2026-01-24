@@ -292,7 +292,14 @@ function App() {
           setDeletePasswordMsg('كلمة السرّ صحيحة')
         } else {
           setDeletePasswordOk(false)
-          setDeletePasswordMsg('كلمة السرّ غالطة')
+          const data = await res.json().catch(() => null)
+          if (res.status >= 500) {
+            setDeletePasswordMsg(data?.error || 'صار مشكل في السيرفر وقت التثبّت')
+          } else if (res.status === 400) {
+            setDeletePasswordMsg('اكتب كلمة السرّ')
+          } else {
+            setDeletePasswordMsg('كلمة السرّ غالطة')
+          }
         }
       } catch (e) {
         if (aborted) return

@@ -54,15 +54,16 @@ async function verifyPassword({
 
 export async function onRequestPost({ request, env }) {
   try {
-    const supabaseUrl = env.SUPABASE_URL;
-    const supabaseAnonKey = env.SUPABASE_ANON_KEY;
+    const supabaseUrl = env.SUPABASE_URL || env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseAnonKey) {
       return withCors(
         jsonResponse(
           {
             ok: false,
-            error: "Missing SUPABASE_URL / SUPABASE_ANON_KEY",
+            error:
+              "Missing SUPABASE_URL / SUPABASE_ANON_KEY (or VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY)",
           },
           500,
         ),

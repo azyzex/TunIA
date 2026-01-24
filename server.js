@@ -14,8 +14,9 @@ app.use(express.json({ limit: "10mb" }));
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY =
+  process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
 
 async function verifySupabasePassword({ email, password }) {
@@ -424,13 +425,11 @@ app.post("/api/delete-account", async (req, res) => {
         .status(401)
         .json({ ok: false, error: "كلمة السرّ موش صحيحة." });
     }
-    return res
-      .status(status)
-      .json({
-        ok: false,
-        error: "صار مشكل وقت حذف الحساب.",
-        details: err?.message || String(err),
-      });
+    return res.status(status).json({
+      ok: false,
+      error: "صار مشكل وقت حذف الحساب.",
+      details: err?.message || String(err),
+    });
   }
 });
 

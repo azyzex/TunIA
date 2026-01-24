@@ -82,8 +82,8 @@ async function adminDeleteUser({ supabaseUrl, serviceKey, userId }) {
 
 export async function onRequestPost({ request, env }) {
   try {
-    const supabaseUrl = env.SUPABASE_URL;
-    const supabaseAnonKey = env.SUPABASE_ANON_KEY;
+    const supabaseUrl = env.SUPABASE_URL || env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY;
     const serviceKey = env.SUPABASE_SERVICE_KEY;
 
     if (!supabaseUrl || !supabaseAnonKey || !serviceKey) {
@@ -92,7 +92,7 @@ export async function onRequestPost({ request, env }) {
           {
             ok: false,
             error:
-              "Missing SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_KEY",
+              "Missing SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_KEY (or VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY)",
           },
           500,
         ),
