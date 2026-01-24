@@ -20,12 +20,18 @@ export async function onRequestOptions() {
   return withCors(new Response(null, { status: 204 }));
 }
 
-async function verifyPassword({ supabaseUrl, supabaseAnonKey, email, password }) {
+async function verifyPassword({
+  supabaseUrl,
+  supabaseAnonKey,
+  email,
+  password,
+}) {
   const url = `${supabaseUrl.replace(/\/$/, "")}/auth/v1/token?grant_type=password`;
   const resp = await fetch(url, {
     method: "POST",
     headers: {
       apikey: supabaseAnonKey,
+      authorization: `Bearer ${supabaseAnonKey}`,
       "content-type": "application/json",
     },
     body: JSON.stringify({ email, password }),

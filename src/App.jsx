@@ -45,6 +45,9 @@ function App() {
   const [deletingAccount, setDeletingAccount] = useState(false)
   const [deleteAccountError, setDeleteAccountError] = useState('')
 
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
+
   const accountBtnRef = useRef(null)
   const accountMenuRef = useRef(null)
   const deleteAccountModalRef = useRef(null)
@@ -347,6 +350,27 @@ function App() {
       setDeleteAccountError(e?.message || 'صار مشكل وقت حذف الحساب')
     } finally {
       setDeletingAccount(false)
+    }
+  }
+
+  const openLogoutConfirm = () => {
+    setAccountMenuOpen(false)
+    setLogoutConfirmOpen(true)
+  }
+
+  const closeLogoutConfirm = () => {
+    if (loggingOut) return
+    setLogoutConfirmOpen(false)
+  }
+
+  const confirmLogout = async () => {
+    if (loggingOut) return
+    setLoggingOut(true)
+    try {
+      await supabase.auth.signOut()
+      setLogoutConfirmOpen(false)
+    } finally {
+      setLoggingOut(false)
     }
   }
 
@@ -801,8 +825,10 @@ async function readPDFFile(file) {
     return <AuthScreen onAuth={(u)=>{ setUser(u); }} />
   }
 
+  const anyBlockingModalOpen = Boolean(deleteAccountOpen || logoutConfirmOpen || deleteConfirmId || renameModal.open)
+
   return (
-    <div className={`app-shell ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`} style={{ 
+    <div className={`app-shell ${sidebarOpen ? 'sidebar-open' : 'sidebar-closed'} ${anyBlockingModalOpen ? 'modal-open' : ''}`} style={{ 
       backgroundColor: '#202123', 
       background: 'linear-gradient(180deg, #343541 0%, #202123 100%)',
       color: '#f8f9fa',
@@ -881,10 +907,7 @@ async function readPDFFile(file) {
                 >
                   <button
                     type="button"
-                    onClick={async () => {
-                      setAccountMenuOpen(false)
-                      await supabase.auth.signOut()
-                    }}
+                    onClick={openLogoutConfirm}
                   >
                     <LogOut size={14} />
                     <span>تسجيل الخروج</span>
@@ -903,6 +926,38 @@ async function readPDFFile(file) {
           </div>
         </div>
       </aside>
+
+      {/* Logout Confirm Modal */}
+      <AnimatePresence>
+        {logoutConfirmOpen && (
+          <motion.div
+            className="modal-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            onClick={closeLogoutConfirm}
+          >
+            <motion.div
+              className="confirm-modal"
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.98 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h6>متأكد باش تخرج؟</h6>
+              <p>كانك تخرج، تنجم ترجع تسجّل الدخول في أي وقت.</p>
+              <div className="confirm-actions">
+                <button className="btn-cancel" onClick={closeLogoutConfirm} disabled={loggingOut}>إلغاء</button>
+                <button className="btn-primary" onClick={confirmLogout} disabled={loggingOut}>
+                  {loggingOut ? 'جاري الخروج…' : 'إي، نخرج'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Delete Account Modal */}
       <AnimatePresence>

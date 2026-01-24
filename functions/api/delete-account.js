@@ -20,12 +20,18 @@ export async function onRequestOptions() {
   return withCors(new Response(null, { status: 204 }));
 }
 
-async function verifyPassword({ supabaseUrl, supabaseAnonKey, email, password }) {
+async function verifyPassword({
+  supabaseUrl,
+  supabaseAnonKey,
+  email,
+  password,
+}) {
   const url = `${supabaseUrl.replace(/\/$/, "")}/auth/v1/token?grant_type=password`;
   const resp = await fetch(url, {
     method: "POST",
     headers: {
       apikey: supabaseAnonKey,
+      authorization: `Bearer ${supabaseAnonKey}`,
       "content-type": "application/json",
     },
     body: JSON.stringify({ email, password }),
@@ -85,7 +91,8 @@ export async function onRequestPost({ request, env }) {
         jsonResponse(
           {
             ok: false,
-            error: "Missing SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_KEY",
+            error:
+              "Missing SUPABASE_URL / SUPABASE_ANON_KEY / SUPABASE_SERVICE_KEY",
           },
           500,
         ),

@@ -23,6 +23,13 @@
   min-height: 100vh;
 }
 
+.app-shell.modal-open .main-panel,
+.app-shell.modal-open .sidebar,
+.app-shell.modal-open .sidebar-toggle {
+  pointer-events: none;
+  user-select: none;
+}
+
 /* ===== SIDEBAR STYLES ===== */
 .sidebar {
   position: fixed;
@@ -334,7 +341,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 3000;
 }
 
 .confirm-modal {

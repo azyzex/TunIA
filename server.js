@@ -29,6 +29,7 @@ async function verifySupabasePassword({ email, password }) {
     method: "POST",
     headers: {
       apikey: SUPABASE_ANON_KEY,
+      authorization: `Bearer ${SUPABASE_ANON_KEY}`,
       "content-type": "application/json",
     },
     body: JSON.stringify({ email, password }),
@@ -384,22 +385,28 @@ function isIdentityQuestion(msg) {
 
 app.post("/api/verify-password", async (req, res) => {
   try {
-    const email = typeof req?.body?.email === "string" ? req.body.email.trim() : "";
-    const password = typeof req?.body?.password === "string" ? req.body.password : "";
+    const email =
+      typeof req?.body?.email === "string" ? req.body.email.trim() : "";
+    const password =
+      typeof req?.body?.password === "string" ? req.body.password : "";
     if (!email || !password) return res.status(400).json({ ok: false });
     await verifySupabasePassword({ email, password });
     return res.json({ ok: true });
   } catch (err) {
     const status = err?.status || 500;
     if (status === 401) return res.status(401).json({ ok: false });
-    return res.status(status).json({ ok: false, error: err?.message || String(err) });
+    return res
+      .status(status)
+      .json({ ok: false, error: err?.message || String(err) });
   }
 });
 
 app.post("/api/delete-account", async (req, res) => {
   try {
-    const email = typeof req?.body?.email === "string" ? req.body.email.trim() : "";
-    const password = typeof req?.body?.password === "string" ? req.body.password : "";
+    const email =
+      typeof req?.body?.email === "string" ? req.body.email.trim() : "";
+    const password =
+      typeof req?.body?.password === "string" ? req.body.password : "";
     if (!email || !password) return res.status(400).json({ ok: false });
 
     const data = await verifySupabasePassword({ email, password });
@@ -413,11 +420,17 @@ app.post("/api/delete-account", async (req, res) => {
   } catch (err) {
     const status = err?.status || 500;
     if (status === 401) {
-      return res.status(401).json({ ok: false, error: "كلمة السرّ موش صحيحة." });
+      return res
+        .status(401)
+        .json({ ok: false, error: "كلمة السرّ موش صحيحة." });
     }
     return res
       .status(status)
-      .json({ ok: false, error: "صار مشكل وقت حذف الحساب.", details: err?.message || String(err) });
+      .json({
+        ok: false,
+        error: "صار مشكل وقت حذف الحساب.",
+        details: err?.message || String(err),
+      });
   }
 });
 
