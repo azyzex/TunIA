@@ -237,12 +237,10 @@ function App() {
         if (error) throw error
         const fromProfile = data?.display_name || ''
         const fromMeta = user?.user_metadata?.username || user?.user_metadata?.display_name || ''
-        const fromEmail = user?.email?.split('@')?.[0] || ''
-        setProfileName(fromProfile || fromMeta || fromEmail)
+        setProfileName(fromProfile || fromMeta)
       } catch (e) {
         const fromMeta = user?.user_metadata?.username || user?.user_metadata?.display_name || ''
-        const fromEmail = user?.email?.split('@')?.[0] || ''
-        setProfileName(fromMeta || fromEmail)
+        setProfileName(fromMeta)
       }
     })()
     return () => { cancelled = true }
@@ -889,6 +887,11 @@ async function readPDFFile(file) {
         </div>
         <div className="sidebar-footer">
           <div className="account-area">
+            {profileName && (
+              <div className="account-name-pill" aria-hidden="true">
+                {profileName}
+              </div>
+            )}
             <button
               ref={accountBtnRef}
               className="account-btn"

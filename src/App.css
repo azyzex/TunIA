@@ -198,6 +198,35 @@
   justify-content: flex-end;
 }
 
+.account-name-pill {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%) translateX(10px);
+  height: 38px;
+  display: flex;
+  align-items: center;
+  padding: 0 46px 0 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e5e5e5;
+  font-size: 0.82rem;
+  white-space: nowrap;
+  max-width: 210px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
+  transition: transform 0.18s ease, opacity 0.18s ease;
+}
+
+.account-area:hover .account-name-pill {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
 .account-btn {
   width: 38px;
   height: 38px;
@@ -210,6 +239,8 @@
   justify-content: center;
   cursor: pointer;
   transition: all 0.15s ease;
+  position: relative;
+  z-index: 1;
 }
 
 .account-btn:hover {
