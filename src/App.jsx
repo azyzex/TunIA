@@ -2,6 +2,9 @@ import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import 'bootstrap/dist/css/bootstrap.min.css'
 import { MessageSquarePlus, MoreHorizontal, Pencil, Trash2, LogOut, PanelLeftClose, PanelLeft } from 'lucide-react'
+import MarkdownIt from 'markdown-it'
+import markdownItKatex from 'markdown-it-katex'
+import 'katex/dist/katex.min.css'
 import ChatHeader from './components/ChatHeader'
 import ChatMessage from './components/ChatMessage'
 import ChatInput from './components/ChatInput'
@@ -402,24 +405,19 @@ function App() {
       for (let i = idx - 1; i >= 0; i--) {
         if (messages[i]?.sender === 'user') { prevUser = messages[i].text || ''; break }
       }
-      const res = await fetch(`${API_BASE}/api/export-pdf`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userPrompt: prevUser, aiText: aiMessage.text })
-      })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data?.error || 'PDF_ERROR')
+      // Client-side export (Cloudflare-safe): build a small preview from this AI message and download directly
+      const previewMessage = {
+        id: Date.now(),
+        sender: 'ai',
+        text: aiMessage?.text || '',
+        timestamp: new Date(),
+        isPdfPreview: true,
+        pdfData: [
+          { sender: 'user', text: prevUser, timestamp: new Date() },
+          { sender: 'ai', text: aiMessage?.text || '', timestamp: new Date() }
+        ]
       }
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'export.pdf'
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      URL.revokeObjectURL(url)
+      setMessages(prev => [...prev, previewMessage])
     } catch (e) {
       setMessages(prev => [...prev, {
         id: prev.length + 1,
@@ -430,28 +428,197 @@ function App() {
     }
   }
 
+  const buildExportMarkdown = (msgs, includeCitations = true) => {
+    const arr = Array.isArray(msgs) ? msgs : []
+    const aiMessages = arr.filter(m => m && m.sender === 'ai' && !m.isWelcomeMessage && !m.isPdfPreview)
+    const combined = aiMessages.length
+      ? aiMessages.map(m => String(m.text || '')).join('\n\n---\n\n')
+      : String(arr.slice().reverse().find(m => m && m.sender === 'user' && m.text)?.text || '')
+
+    const urlRegex = /https?:\/\/[^\s)]+/gi
+    const urls = includeCitations
+      ? Array.from(new Set((combined.match(urlRegex) || [])))
+      : []
+
+    const citationsBlock = includeCitations && urls.length
+      ? `\n\n---\n\n## المراجع\n${urls.map(u => `- ${u}`).join('\n')}\n`
+      : ''
+
+    return `${combined}${citationsBlock}`.trim()
+  }
+
+  const stripMarkdownToPlain = (md) => {
+    const s = String(md || '')
+    return s
+      .replace(/```[\s\S]*?```/g, '')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/!\[[^\]]*\]\([^\)]*\)/g, '')
+      .replace(/\[[^\]]*\]\(([^\)]*)\)/g, '$1')
+      .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+      .replace(/^\s{0,3}>\s?/gm, '')
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      .replace(/\*([^*]+)\*/g, '$1')
+      .replace(/_([^_]+)_/g, '$1')
+      .replace(/\r/g, '')
+      .trim()
+  }
+
+  const downloadBlob = (blob, filename) => {
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 500)
+  }
+
+  const buildPrintHtml = ({ title, headerHtml, bodyHtml }) => {
+    // Copy existing styles so KaTeX + app fonts are available.
+    const styleLinks = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+      .map((l) => l.href)
+      .filter(Boolean)
+    const styleTags = Array.from(document.querySelectorAll('style'))
+      .map((s) => s.textContent || '')
+      .filter(Boolean)
+
+    const safeTitle = String(title || 'Scientific memo').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    return `
+      <!doctype html>
+      <html lang="ar" dir="rtl">
+        <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <title>${safeTitle}</title>
+          ${styleLinks.map(href => `<link rel="stylesheet" href="${href}" />`).join('')}
+          <style>
+            ${styleTags.join('\n')}
+            @page { size: A4; margin: 18mm 16mm; }
+            html, body { background: #fff; }
+            body { margin: 0; color: #111827; }
+            .print-shell { font-family: 'Noto Sans Arabic', system-ui, -apple-system, sans-serif; }
+            .print-header { margin: 0 0 14px 0; }
+            .print-body { font-family: Georgia, 'Times New Roman', serif; font-size: 12pt; line-height: 1.75; text-align: justify; text-justify: inter-word; hyphens: auto; }
+            .print-body p { margin: 0; text-indent: 1.2em; }
+            .print-body p + p { margin-top: 0.25em; }
+            .print-body h1, .print-body h2, .print-body h3 { font-family: 'Noto Sans Arabic', system-ui, -apple-system, sans-serif; text-align: right; }
+            .print-body h1 + p, .print-body h2 + p, .print-body h3 + p { text-indent: 0; }
+            .print-body li p { text-indent: 0; }
+            .print-body code, .print-body pre { direction:ltr; text-align:left; }
+            .print-body pre { background:#f3f4f6; padding:10px; border-radius:8px; overflow:auto; }
+            .print-body hr { border:0; border-top:1px solid #e5e7eb; margin:16px 0; }
+            .katex { font-size: 1.05em; }
+            .katex-display { margin: 0.8em 0; }
+            /* Hide any UI-only elements */
+            .no-print { display:none !important; }
+            @media print { .no-print { display:none !important; } }
+          </style>
+        </head>
+        <body>
+          <div class="print-shell">
+            <div class="no-print" style="padding:12px 16px; border-bottom:1px solid #e5e7eb; font: 14px/1.4 system-ui; color:#374151;">
+              باش تهبطو PDF: اختار <b>Save as PDF</b> في نافذة الطباعة.
+            </div>
+            <div style="padding: 0 0;">
+              <div class="print-header">${headerHtml || ''}</div>
+              <div class="print-body">${bodyHtml || ''}</div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `
+  }
+
+  const openPrintToPdfWindow = ({ title, headerHtml, bodyHtml }) => {
+    const html = buildPrintHtml({ title, headerHtml, bodyHtml })
+
+    // Preferred path: same-page hidden iframe (avoids popup blockers).
+    try {
+      const iframe = document.createElement('iframe')
+      iframe.setAttribute('title', 'pdf-print')
+      iframe.style.position = 'fixed'
+      iframe.style.right = '0'
+      iframe.style.bottom = '0'
+      iframe.style.width = '1px'
+      iframe.style.height = '1px'
+      iframe.style.opacity = '0'
+      iframe.style.pointerEvents = 'none'
+      iframe.style.border = '0'
+      document.body.appendChild(iframe)
+
+      const doc = iframe.contentDocument
+      const win = iframe.contentWindow
+      if (!doc || !win) throw new Error('IFRAME_UNAVAILABLE')
+      doc.open()
+      doc.write(html)
+      doc.close()
+
+      const cleanup = () => {
+        try { iframe.remove() } catch (_) {}
+      }
+
+      const trigger = async () => {
+        try {
+          await (doc.fonts?.ready?.catch(() => null))
+        } catch (_) {}
+        setTimeout(() => {
+          try {
+            win.focus()
+            // Remove iframe after printing (some browsers fire afterprint)
+            win.addEventListener('afterprint', cleanup, { once: true })
+            win.print()
+            // Fallback cleanup
+            setTimeout(cleanup, 2000)
+          } catch (_) {
+            cleanup()
+            throw new Error('PRINT_FAILED')
+          }
+        }, 250)
+      }
+
+      if (doc.readyState === 'complete') trigger()
+      else iframe.addEventListener('load', trigger, { once: true })
+
+      return
+    } catch (e) {
+      // Fall back to opening a new tab.
+      console.warn('iframe print failed; falling back to window.open', e)
+    }
+
+    // Fallback: new tab/window.
+    const w = window.open('', '_blank', 'noopener,noreferrer')
+    if (!w) throw new Error('POPUP_BLOCKED')
+    w.document.open()
+    w.document.write(html)
+    w.document.close()
+
+    // Trigger print after resources settle.
+    const trigger = async () => {
+      try {
+        await (w.document.fonts?.ready?.catch(() => null))
+      } catch (_) {}
+      setTimeout(() => {
+        try { w.focus(); w.print(); } catch (_) {}
+      }, 250)
+    }
+
+    if (w.document.readyState === 'complete') trigger()
+    else w.addEventListener('load', trigger)
+  }
+
   // New handler for the PDF export tool workflow
   const handleDownloadPdf = async (messageId) => {
     setGeneratingPreview(messageId) // Set loading state
     try {
-      const response = await fetch(`${API_BASE}/export-pdf`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages })
-      })
-      
-      if (!response.ok) throw new Error('PDF generation failed')
-      
-      const data = await response.json()
-      
-      // Create a new AI message showing what will be in the PDF with confirmation button
+      const previewText = buildExportMarkdown(messages, true)
       const previewMessage = {
         id: Date.now(),
         sender: 'ai',
-        text: data.previewContent,
+        text: previewText,
         timestamp: new Date(),
-        isPdfPreview: true, // Flag to show confirmation button
-        pdfData: messages // Store the data for actual PDF generation
+        isPdfPreview: true,
+        pdfData: messages
       }
       
       setMessages(prev => [...prev, previewMessage])
@@ -473,35 +640,67 @@ function App() {
   const handleConfirmPdfDownload = async (pdfData, messageId, includeCitations = true, exportFormat = 'pdf') => {
     setDownloadingPdf(messageId)
     try {
-      const endpoint = exportFormat === 'pdf' ? '/download-pdf' : 
-                     exportFormat === 'docx' ? '/download-docx' : 
-                     '/download-markdown'
-      
-      const response = await fetch(`${API_BASE}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: pdfData, includeCitations })
-      })
-      
-      if (!response.ok) throw new Error(`${exportFormat.toUpperCase()} download failed`)
-      
-      const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      
-      // Set appropriate file extension
-      const extension = exportFormat === 'pdf' ? '.pdf' : 
-                       exportFormat === 'docx' ? '.rtf' : '.md'
-      a.download = `chat-export${extension}`
-      
-      a.click()
-      URL.revokeObjectURL(url)
+      const md = buildExportMarkdown(pdfData, includeCitations)
+
+      if (!md || !String(md).trim()) {
+        throw new Error('NO_EXPORT_CONTENT')
+      }
+
+      if (exportFormat === 'markdown') {
+        downloadBlob(new Blob([md], { type: 'text/markdown; charset=utf-8' }), 'chat-export.md')
+        return
+      }
+
+      if (exportFormat === 'docx') {
+        const plain = stripMarkdownToPlain(md)
+        // Minimal RTF (works well for Word/Docs). Note: Arabic rendering depends on client fonts.
+        const rtf = `{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0 Arial;}}\\viewkind4\\uc1\\pard\\rtlpar\\f0\\fs22 ${plain
+          .replace(/\\/g, '\\\\')
+          .replace(/{/g, '\\{')
+          .replace(/}/g, '\\}')
+          .replace(/\n/g, '\\par\n')}\\par}`
+        downloadBlob(new Blob([rtf], { type: 'application/rtf' }), 'chat-export.rtf')
+        return
+      }
+
+      // PDF: use the browser's print-to-PDF engine (vector, selectable text, reliable; avoids html2canvas blank pages).
+      // Add KaTeX so inline math like $E=mc^2$ or $$...$$ looks LaTeX-ish.
+      const mdIt = new MarkdownIt({ html: true, linkify: true, breaks: true }).use(markdownItKatex)
+      const bodyHtml = mdIt.render(md)
+
+      const isMemo = exportFormat === 'pdf_memo' || exportFormat === 'pdf'
+      const now = new Date()
+      const dateStr = now.toLocaleDateString('ar-TN', { year: 'numeric', month: 'long', day: 'numeric' })
+      const srcArr = Array.isArray(pdfData) ? pdfData : []
+      const firstUser = srcArr.find(m => m && m.sender === 'user' && String(m.text || '').trim())
+      const rawTitle = String(firstUser?.text || 'Scientific memo').trim()
+      const title = rawTitle.length > 90 ? `${rawTitle.slice(0, 90)}…` : rawTitle
+
+      const headerHtml = `
+        <div style="padding: 0 0 10px 0; border-bottom: 1px solid #e5e7eb;">
+          <div style="font-size: 11px; letter-spacing: .12em; color: #6b7280; text-transform: uppercase;">Scientific memo export</div>
+          <div style="font-size: 26px; margin: 8px 0 6px 0; font-weight: 800; font-family: 'Noto Sans Arabic', system-ui, -apple-system, sans-serif;">${title.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap; font-size: 12px; color:#6b7280;">
+            <div style="padding: 4px 10px; border:1px solid #e5e7eb; border-radius:999px;">التاريخ: ${dateStr}</div>
+            <div style="padding: 4px 10px; border:1px solid #e5e7eb; border-radius:999px;">مولّد: TunisianPDFexplainer</div>
+          </div>
+        </div>
+      `
+
+      openPrintToPdfWindow({ title: isMemo ? title : 'Export', headerHtml, bodyHtml })
+      return
     } catch (error) {
       console.error(`${exportFormat.toUpperCase()} download error:`, error)
-      const formatName = exportFormat === 'pdf' ? 'PDF' : 
+      const formatName = exportFormat === 'pdf' || exportFormat === 'pdf_memo' ? 'PDF' : 
                         exportFormat === 'docx' ? 'Word (RTF)' : 'Markdown'
-      alert(`فشل في تحميل الـ ${formatName}. جرّب مرة ثانية.`)
+      const code = String(error?.message || '')
+      if (formatName === 'PDF' && code.includes('POPUP_BLOCKED')) {
+        alert('المتصفح سكّر نافذة الطباعة/التصدير. فعّل Pop-ups للموقع وعاود جرّب.')
+      } else if (formatName === 'PDF' && (code.includes('PRINT_FAILED') || code.includes('IFRAME_UNAVAILABLE'))) {
+        alert('ما نجّمش نفتح الطباعة للـ PDF في المتصفح هذا. جرّب Chrome/Edge أو بدّل للتنسيق Markdown/Word.')
+      } else {
+        alert(`فشل في تحميل الـ ${formatName}. جرّب مرة ثانية.`)
+      }
     } finally {
       setDownloadingPdf(null)
     }

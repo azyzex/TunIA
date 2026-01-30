@@ -9,7 +9,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
   // Per-message toggle for including citations in PDF
   const [includeCitations, setIncludeCitations] = useState(true)
   // Export format selection
-  const [exportFormat, setExportFormat] = useState('pdf')
+  const [exportFormat, setExportFormat] = useState('pdf_memo')
   // Quiz UI state
   const [quizSelections, setQuizSelections] = useState([])
   const [quizRevealed, setQuizRevealed] = useState(false)
@@ -1208,6 +1208,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                 onChange={(e) => setExportFormat(e.target.value)}
               >
                 <option value="pdf">PDF</option>
+                <option value="pdf_memo">PDF (مذكرة علمية)</option>
                 <option value="docx">Word (RTF)</option>
                 <option value="markdown">Markdown (MD)</option>
               </select>
@@ -1229,7 +1230,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
             ) : (
               <>
                 <Download size={16} />
-                <span>تحميل {exportFormat === 'pdf' ? 'PDF' : exportFormat === 'docx' ? 'Word' : 'Markdown'}</span>
+                <span>تحميل {exportFormat === 'pdf' || exportFormat === 'pdf_memo' ? 'PDF' : exportFormat === 'docx' ? 'Word' : 'Markdown'}</span>
               </>
             )}
           </button>
