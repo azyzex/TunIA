@@ -10,6 +10,7 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
   const [includeCitations, setIncludeCitations] = useState(true)
   // Export format selection
   const [exportFormat, setExportFormat] = useState('pdf')
+  const [detailedExport, setDetailedExport] = useState(true)
   // Quiz UI state
   const [quizSelections, setQuizSelections] = useState([])
   const [quizRevealed, setQuizRevealed] = useState(false)
@@ -1212,13 +1213,27 @@ const ChatMessage = ({ message, isLoading = false, onExport, onRetry, onEdit, on
                 <option value="markdown">Markdown (MD)</option>
               </select>
             </div>
+
+            <div className="form-check d-flex align-items-center">
+              <input
+                className="form-check-input"
+                type="checkbox"
+                id={`detailed-export-${message.id}`}
+                checked={detailedExport}
+                onChange={(e) => setDetailedExport(e.target.checked)}
+                style={{ borderColor: '#ee6060' }}
+              />
+              <label className="form-check-label ms-2" htmlFor={`detailed-export-${message.id}`}>
+                مفصّل (يزيد محتوى)
+              </label>
+            </div>
           </div>
           
           <button
             type="button"
             className="btn d-flex align-items-center gap-2"
             style={{ backgroundColor: '#ee6060', borderColor: '#ee6060', color: '#fff5ed' }}
-            onClick={() => onConfirmPdfDownload && onConfirmPdfDownload(message.pdfData, message.id, includeCitations, exportFormat)}
+            onClick={() => onConfirmPdfDownload && onConfirmPdfDownload(message.pdfData, message.id, includeCitations, exportFormat, detailedExport)}
             disabled={downloadingPdf === message.id}
           >
             {downloadingPdf === message.id ? (

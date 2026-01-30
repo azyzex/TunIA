@@ -689,13 +689,49 @@ function App() {
   }
 
   // Handler for confirming PDF download after preview
-  const handleConfirmPdfDownload = async (pdfData, messageId, includeCitations = true, exportFormat = 'pdf') => {
+  const handleConfirmPdfDownload = async (pdfData, messageId, includeCitations = true, exportFormat = 'pdf', detailedExport = false) => {
     setDownloadingPdf(messageId)
     try {
-      const md = buildExportMarkdown(pdfData, includeCitations)
+      let md = buildExportMarkdown(pdfData, includeCitations)
 
       if (!md || !String(md).trim()) {
         throw new Error('NO_EXPORT_CONTENT')
+      }
+
+      // Optional: ask the model to expand the content into a richer scientific memo.
+      if (detailedExport) {
+        try {
+          const baseMd = md
+          const prompt = `حوّل محتوى هالمحادثة إلى مذكرة/تقرير علمي مفصّل وأكاديمي (style قريب لـ LaTeX) بصيغة Markdown.
+
+متطلبات مهمّة:
+- زِد المحتوى بشكل واضح (تعريفات، شرح معمّق، أمثلة، خطوات، مقارنات، ملخّص نقاط، خاتمة).
+- نظّمها بأقسام: Abstract, مقدمة, خلفية, شرح/منهجية, أمثلة, أسئلة/تمارين (اختياري), خاتمة, مراجع.
+- إذا المعلومة ناقصة، صرّح بذلك وما تخمّمش. إذا تضيف معلومة جديدة لازم ترفقها بمصدر واضح (URL) داخل قسم المراجع.
+- استعمل لغة عربية فصحى واضحة (موش دارجة) مع الحفاظ على المصطلحات التقنية.
+- استعمل معادلات بـ $...$ و $$...$$ كي يلزم.
+
+هذا هو نص المحادثة (Markdown):
+\n\n${baseMd}`
+
+          const res = await fetch(`${API_BASE}/api/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message: prompt,
+              history: [],
+              webSearch: true,
+              fetchUrl: true,
+              pdfExport: true
+            })
+          })
+          const data = await res.json().catch(() => ({}))
+          if (res.ok && data?.reply && String(data.reply).trim()) {
+            md = String(data.reply)
+          }
+        } catch (e) {
+          console.warn('detailed export failed; falling back to basic export', e)
+        }
       }
 
       if (exportFormat === 'markdown') {
