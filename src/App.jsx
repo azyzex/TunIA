@@ -463,6 +463,58 @@ function App() {
       .trim()
   }
 
+  const escapeRtfAscii = (s) => {
+    return String(s || '')
+      .replace(/\\/g, '\\\\')
+      .replace(/{/g, '\\{')
+      .replace(/}/g, '\\}')
+  }
+
+  const toRtfUnicode = (text) => {
+    // Encode Unicode as RTF \uN? escapes to avoid mojibake (e.g. Ø§Ù…).
+    // RTF expects 16-bit signed values for \u.
+    let out = ''
+    const str = String(text || '')
+    for (const ch of str) {
+      if (ch === '\n') {
+        out += '\\par\n'
+        continue
+      }
+      if (ch === '\r') continue
+      const cp = ch.codePointAt(0)
+      if (cp == null) continue
+      // Basic ASCII
+      if (cp >= 0x20 && cp <= 0x7e) {
+        out += escapeRtfAscii(ch)
+        continue
+      }
+      // Tabs
+      if (ch === '\t') {
+        out += '\\tab '
+        continue
+      }
+      // Newline via other sources
+      if (cp === 10) {
+        out += '\\par\n'
+        continue
+      }
+      // BMP
+      if (cp <= 0xffff) {
+        const signed = cp > 0x7fff ? cp - 0x10000 : cp
+        out += `\\u${signed}?`
+        continue
+      }
+      // Surrogate pair
+      const u = cp - 0x10000
+      const hi = 0xd800 + ((u >> 10) & 0x3ff)
+      const lo = 0xdc00 + (u & 0x3ff)
+      const hiSigned = hi > 0x7fff ? hi - 0x10000 : hi
+      const loSigned = lo > 0x7fff ? lo - 0x10000 : lo
+      out += `\\u${hiSigned}?\\u${loSigned}?`
+    }
+    return out
+  }
+
   const downloadBlob = (blob, filename) => {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -653,12 +705,9 @@ function App() {
 
       if (exportFormat === 'docx') {
         const plain = stripMarkdownToPlain(md)
-        // Minimal RTF (works well for Word/Docs). Note: Arabic rendering depends on client fonts.
-        const rtf = `{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0 Arial;}}\\viewkind4\\uc1\\pard\\rtlpar\\f0\\fs22 ${plain
-          .replace(/\\/g, '\\\\')
-          .replace(/{/g, '\\{')
-          .replace(/}/g, '\\}')
-          .replace(/\n/g, '\\par\n')}\\par}`
+        // Unicode RTF (Arabic-safe)
+        const rtfBody = toRtfUnicode(plain)
+        const rtf = `{\\rtf1\\ansi\\deff0{\\fonttbl{\\f0 Arial;}}\\viewkind4\\uc1\\pard\\rtlpar\\f0\\fs22 ${rtfBody}\\par}`
         downloadBlob(new Blob([rtf], { type: 'application/rtf' }), 'chat-export.rtf')
         return
       }
@@ -668,7 +717,7 @@ function App() {
       const mdIt = new MarkdownIt({ html: true, linkify: true, breaks: true }).use(markdownItKatex)
       const bodyHtml = mdIt.render(md)
 
-      const isMemo = exportFormat === 'pdf_memo' || exportFormat === 'pdf'
+      const isMemo = exportFormat === 'pdf'
       const now = new Date()
       const dateStr = now.toLocaleDateString('ar-TN', { year: 'numeric', month: 'long', day: 'numeric' })
       const srcArr = Array.isArray(pdfData) ? pdfData : []
@@ -691,7 +740,7 @@ function App() {
       return
     } catch (error) {
       console.error(`${exportFormat.toUpperCase()} download error:`, error)
-      const formatName = exportFormat === 'pdf' || exportFormat === 'pdf_memo' ? 'PDF' : 
+      const formatName = exportFormat === 'pdf' ? 'PDF' : 
                         exportFormat === 'docx' ? 'Word (RTF)' : 'Markdown'
       const code = String(error?.message || '')
       if (formatName === 'PDF' && code.includes('POPUP_BLOCKED')) {
