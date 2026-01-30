@@ -64,6 +64,20 @@ function App() {
 
   useEffect(() => { scrollToBottom() }, [messages])
 
+  // Close sidebar by default on mobile
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setSidebarOpen(false)
+      }
+    }
+    // Check on mount
+    handleResize()
+    // Listen for resize
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
   const mapDbMessageToUi = (msg) => {
     const meta = msg?.meta || {}
     return {
@@ -94,13 +108,22 @@ function App() {
     })
   }
 
+  // Helper to close sidebar on mobile devices (< 768px)
+  const closeSidebarOnMobile = () => {
+    if (window.innerWidth < 768) {
+      setSidebarOpen(false)
+    }
+  }
+
   const selectConversation = async (convId) => {
     if (!convId) {
       setConversationId(null)
       setMessages([])
+      closeSidebarOnMobile()
       return
     }
     setConversationId(convId)
+    closeSidebarOnMobile()
     try {
       const data = await fetchConversationMessages(convId)
       setMessages((data || []).map(mapDbMessageToUi))
@@ -135,6 +158,7 @@ function App() {
     setConversationId(null)
     setMessages([])
     setConversationMenuId(null)
+    closeSidebarOnMobile()
   }
 
   const handleDeleteConversation = async (convId) => {
@@ -1220,6 +1244,13 @@ async function readPDFFile(file) {
           </div>
         </div>
       </aside>
+
+      {/* Mobile sidebar backdrop - closes sidebar when tapped */}
+      <div 
+        className="sidebar-backdrop" 
+        onClick={() => setSidebarOpen(false)}
+        aria-hidden="true"
+      />
 
       {/* Logout Confirm Modal */}
       <AnimatePresence>

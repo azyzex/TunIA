@@ -336,6 +336,11 @@
   transform: translateX(-100%);
 }
 
+/* Sidebar backdrop - hidden by default */
+.sidebar-backdrop {
+  display: none;
+}
+
 /* ===== SIDEBAR TOGGLE ===== */
 .sidebar-toggle {
   position: fixed;
@@ -473,5 +478,126 @@
   }
   30% {
     transform: translateY(-10px);
+  }
+}
+
+/* ===== MOBILE RESPONSIVE STYLES ===== */
+@media (max-width: 768px) {
+  /* Sidebar becomes overlay on mobile */
+  .sidebar {
+    transform: translateX(-100%);
+    width: 280px;
+    z-index: 1100;
+  }
+
+  /* Override desktop behavior - always use transform on mobile */
+  .app-shell.sidebar-open .sidebar,
+  .app-shell.sidebar-closed .sidebar {
+    /* Mobile uses transform for both states */
+  }
+
+  .app-shell.sidebar-open .sidebar {
+    transform: translateX(0);
+  }
+
+  .app-shell.sidebar-closed .sidebar {
+    transform: translateX(-100%);
+  }
+
+  /* Overlay backdrop when sidebar is open on mobile */
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 1050;
+    display: none;
+  }
+
+  .app-shell.sidebar-open .sidebar-backdrop {
+    display: block;
+  }
+
+  /* Main panel takes full width on mobile */
+  .main-panel {
+    margin-left: 0 !important;
+    width: 100%;
+  }
+
+  /* Sidebar toggle always visible in top-left on mobile */
+  .sidebar-toggle {
+    left: 12px !important;
+    z-index: 1200;
+    background: rgba(23, 23, 23, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  .app-shell.sidebar-open .sidebar-toggle {
+    left: 12px !important;
+    z-index: 1200;
+  }
+
+  /* Modals on mobile */
+  .confirm-modal {
+    width: calc(100% - 32px);
+    max-width: 320px;
+    margin: 16px;
+  }
+
+  /* Account dropdown adjustments */
+  .account-dropdown {
+    min-width: 170px;
+  }
+
+  .account-name-pill {
+    display: none;
+  }
+
+  /* New chat button adjustments */
+  .new-chat-btn {
+    padding: 10px 12px;
+    font-size: 0.8rem;
+  }
+
+  /* Conversation items touch-friendly */
+  .conversation-item {
+    padding: 12px 10px;
+  }
+
+  .conversation-menu-btn {
+    opacity: 1; /* Always visible on mobile for touch */
+    width: 32px;
+    height: 32px;
+  }
+}
+
+/* Small mobile devices */
+@media (max-width: 480px) {
+  .sidebar {
+    width: 100%;
+  }
+
+  .confirm-modal {
+    width: calc(100% - 24px);
+    padding: 16px;
+  }
+
+  .confirm-actions {
+    flex-direction: column;
+  }
+
+  .confirm-actions button {
+    width: 100%;
+  }
+
+  .conversation-dropdown {
+    min-width: 130px;
+  }
+
+  /* Smaller sidebar toggle on very small screens */
+  .sidebar-toggle {
+    width: 32px;
+    height: 32px;
+    top: 8px;
+    left: 8px !important;
   }
 }

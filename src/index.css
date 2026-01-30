@@ -143,3 +143,47 @@ body {
 .chat-container {
   scroll-behavior: smooth;
 }
+
+/* ===== MOBILE RESPONSIVE STYLES ===== */
+@media (max-width: 768px) {
+  .chat-bubble {
+    max-width: 85%;
+    padding: 10px 14px;
+    font-size: 0.95rem;
+  }
+
+  .welcome-card {
+    margin: 12px;
+    padding: 16px;
+    border-radius: 16px;
+  }
+
+  .feature-card {
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .question-btn {
+    padding: 10px 14px;
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .chat-bubble {
+    max-width: 90%;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+  }
+
+  .welcome-card {
+    margin: 8px;
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .question-btn {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+  }
+}
